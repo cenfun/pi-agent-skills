@@ -1,7 +1,7 @@
 ---
 name: figma-snapshot-to-html
 description: Extracts screens, design tokens, layout, typography, reusable patterns, and asset references from plugin-exported .temp/figma-snapshot.json files, then implements faithful HTML/CSS or framework pages in an existing web project. Use when converting a local Figma snapshot JSON to HTML/CSS, Vue, React, or another web UI without relying on the Figma MCP design-context tool.
-compatibility: Requires Node.js. Designed for Figma to AI JSON snapshots containing _meta, tokens, and tree.
+compatibility: Requires the Figma desktop app, the Figma to AI JSON plugin, and Node.js. Designed for snapshots containing _meta, tokens, and tree.
 ---
 
 # Figma Snapshot to HTML/CSS
@@ -9,6 +9,12 @@ compatibility: Requires Node.js. Designed for Figma to AI JSON snapshots contain
 Convert a local plugin export (normally `.temp/figma-snapshot.json`) into production code in the target project's existing stack. The snapshot is the primary design source; do not require a live Figma MCP connection.
 
 This workflow adapts the useful design-to-code principles from the local Figma skills: inspect before coding, treat generated structure as reference rather than paste-ready code, reuse the project's components/tokens, preserve assets, componentize repeated UI, and validate visually.
+
+## Prerequisites
+
+1. Install the Figma desktop app.
+2. Install the **Figma to AI JSON** plugin in Figma.
+3. Use the plugin to export the design to `.temp/figma-snapshot.json` in the target project.
 
 ## Hard rules
 
