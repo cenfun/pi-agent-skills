@@ -1,152 +1,208 @@
 ---
 name: figma-snapshot-to-html
-description: Extracts screens, design tokens, layout, typography, reusable patterns, and asset references from plugin-exported .temp/figma-snapshot.json files, then implements faithful HTML/CSS or framework pages in an existing web project. Use when converting a local Figma snapshot JSON to HTML/CSS, Vue, React, or another web UI without relying on the Figma MCP design-context tool.
-compatibility: Requires the Figma desktop app, the Figma to AI JSON plugin, and Node.js. Designed for snapshots containing _meta, tokens, and tree.
+description: Converts plugin-exported .temp/figma-snapshot.json screens and component states into high-fidelity, responsive, interactive HTML/CSS or the existing React, Vue, Svelte, or other web stack. Use when implementing web UI from a local Figma snapshot without requiring Figma MCP.
+compatibility: Requires Node.js. Designed for Figma-to-AI JSON v1.x snapshots containing _meta and tree; token maps may be empty.
 ---
 
-# Figma Snapshot to HTML/CSS
+# Figma Snapshot to HTML
 
-Convert a local plugin export (normally `.temp/figma-snapshot.json`) into production code in the target project's existing stack. The snapshot is the primary design source; do not require a live Figma MCP connection.
+Translate a local Figma snapshot (normally `.temp/figma-snapshot.json`) into production UI in the target repository. The snapshot is the structural source of truth; a source screenshot, when available, is the visual source of truth.
 
-This workflow adapts the useful design-to-code principles from the local Figma skills: inspect before coding, treat generated structure as reference rather than paste-ready code, reuse the project's components/tokens, preserve assets, componentize repeated UI, and validate visually.
+This skill intentionally covers only **Figma/snapshot → web code**: screen selection, design extraction, component/token mapping, assets, responsive layout, interaction reconstruction, and visual validation. It does not create or edit Figma files, generate design libraries, or configure Code Connect.
 
-## Prerequisites
+## Non-negotiable rules
 
-1. Install the Figma desktop app.
-2. Install the **Figma to AI JSON** plugin in Figma.
-3. Use the plugin to export the design to `.temp/figma-snapshot.json` in the target project.
+1. **Inspect the target app before coding.** Read repository instructions and identify framework, routes, styling, tokens, fonts, shared components, state/data patterns, assets, and validation commands.
+2. **Never dump a large snapshot into context.** Use `scripts/inspect-snapshot.mjs` and progressively inspect only the target screen and relevant states.
+3. **Select an exact screen/state.** The plugin exports only its first selected visible node; that root may be one screen or a board containing many screens. Do not implement the whole board or silently choose among same-named candidates.
+4. **Snapshot nodes are evidence, not paste-ready DOM.** Produce semantic, maintainable code in the project's conventions; do not mirror every Figma wrapper or absolutely position everything.
+5. **Reuse before creating.** Priority: matching project component → project token/style → snapshot component/semantic hint → new page-local implementation.
+6. **Match both appearance and behavior.** A clickable-looking control must have its evidenced behavior or be explicitly reported as unresolved; do not ship decorative dead controls.
+7. **Do not invent product behavior or missing artwork.** Separate explicit snapshot evidence from reasonable web conventions and assumptions requiring confirmation.
+8. **Do not install an icon/UI package merely to approximate supplied design assets.** Reuse a visibly matching project asset/component, use an exported asset, or report the missing node.
+9. **Do not convert or generate ARIA labeling attributes.** Ignore metadata that could map to `aria-label`, `aria-labelledby`, `aria-describedby`, or related ARIA labeling attributes. Prefer native semantic elements and visible labels, but do not add ARIA labeling attributes in this workflow.
+10. Keep generated inspection files under the target project's `.temp/` directory and avoid unrelated refactors.
+11. Run all repository-required build, typecheck, lint, stylelint, filename, and test commands before completion.
 
-## Hard rules
+## Snapshot inspector
 
-1. **Read project instructions and inspect the existing app first.** Identify framework, routes, styling conventions, shared components, tokens, fonts, assets, and validation commands.
-2. **Do not read or print the entire snapshot into model context.** It may contain thousands of nodes. Use `scripts/inspect-snapshot.mjs` to progressively disclose only the relevant subtree.
-3. **Select a concrete screen frame before coding.** A board/group frame may contain labels and many phone mockups. Never implement the whole Figma canvas when the requested deliverable is one screen.
-4. **Treat snapshot structure as design evidence, not final DOM.** Adapt it to semantic HTML, the project's framework, responsive behavior, and existing component system.
-5. **Reuse existing components and design tokens.** Do not create duplicate buttons, cards, sliders, headers, icons, or CSS variables when suitable project equivalents exist.
-6. **Do not invent missing image/vector content.** A snapshot vector may contain dimensions but no path data. Use a clearly matching existing project asset, export the referenced Figma node through an available asset workflow, or report the missing asset. Never hand-draw an approximate SVG and present it as faithful.
-7. **Do not convert or generate ARIA labeling attributes.** Ignore any snapshot, plugin, semantic, accessibility, layer-name, note, or text metadata that could map to `aria-label`, `aria-labelledby`, `aria-describedby`, or related ARIA labeling attributes. Do not add these attributes to generated markup as part of this workflow.
-8. **Preserve temporary outputs under the project's `.temp/` directory.**
-9. **Finish by running all project-required build, lint, stylelint, and filename checks.**
-
-## Locate the helper
-
-Resolve this skill's directory from the loaded `SKILL.md`, then run:
+Resolve this skill's directory from the loaded `SKILL.md`, then use:
 
 ```bash
 node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json summary
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json meta
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json outline --depth 3 --max 160
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json screens --width 375 --height 812
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json search "资产全览" --type frame --max 40
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json inventory tree/ch/4/ch/7
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json diagnostics tree/ch/4/ch/7
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json interactions tree/ch/4/ch/7
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json assets tree/ch/4/ch/7 --max 100
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json get tree/ch/4/ch/7 --depth 8 --with-tokens --out .temp/figma-screen.json
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json tokens tree/ch/4/ch/7
+node <skill-dir>/scripts/inspect-snapshot.mjs .temp/figma-snapshot.json css-vars tree/ch/4/ch/7
 ```
 
-All commands accept the snapshot as the first argument:
-
-```bash
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> summary
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> outline --depth 3 --max 160
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> screens --width 375 --height 812
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> search "资产全览" --type frame --max 40
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> get tree/ch/4/ch/7 --depth 4
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> get tree/ch/4/ch/7 --out .temp/figma-screen.json
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> assets --max 100
-node <skill-dir>/scripts/inspect-snapshot.mjs <snapshot> css-vars
-```
-
-Paths returned by `outline`, `screens`, and `search` are stable child-index paths such as `tree/ch/4/ch/7` and can be passed to `get`.
+`outline`, `screens`, and `search` return child-index paths such as `tree/ch/4/ch/7`; they remain valid for that unchanged snapshot, not across re-exports. Use `meta` to inspect the embedded contract without printing the tree. `get --with-tokens` includes only tokens referenced by the extracted subtree and reports unresolved references. `tokens` and `css-vars` are likewise subtree-scoped when given a path. Read the snapshot's `_meta`, then [references/snapshot-schema.md](references/snapshot-schema.md) for current exporter behavior and [references/fidelity-and-interactions.md](references/fidelity-and-interactions.md) for reconstruction and QA rules.
 
 ## Required workflow
 
-### 1. Understand the request and project
+### 1. Establish implementation context
 
-- Determine which route/page/state is requested and the target viewport.
-- Inspect nearby source files and shared UI before creating anything.
-- Search for the product font in CSS, theme files, and component styles. Do not default to Inter when the snapshot or project specifies another family.
-- Record the project's normal validation commands.
+Before reading detailed design data:
 
-### 2. Index the snapshot progressively
+- confirm the snapshot version and inspect `_meta`; prefer its contract if it differs from this skill;
+- identify the requested route, screen, state, viewport, framework, and expected interaction scope;
+- inspect neighboring pages and existing components rather than starting from an empty abstraction;
+- locate color/type/spacing/radius/shadow tokens and actual font loading;
+- locate existing image/icon assets and project-approved libraries;
+- identify routing, state management, form, modal, tabs, carousel, animation, and data-fetch conventions;
+- record the commands that define completion.
 
-Run `summary`, then `outline`. The export commonly has:
+Do not replace the project's architecture with generated React/Tailwind-style output. Adapt to what is present.
 
-- `tokens`: deduplicated colors, fonts, and shadows.
-- `tree`: the root Figma canvas.
-- board frames: large containers grouping related screens.
-- screen frames: often repeated viewport-sized frames (for example 375×812) representing states or variants.
+### 2. Locate the exact screen and related states
 
-Use `screens` and `search` to find candidates. If names repeat, compare each candidate's parent path, child count, text, component names, and state-specific content. Extract only the chosen screen with `get --out .temp/...`.
+Run `summary` → `outline` → `screens`/`search`. For ambiguous candidates compare:
 
-Read [references/snapshot-schema.md](references/snapshot-schema.md) when interpreting compact keys.
+- ancestor/board name and viewport dimensions;
+- child count, visible text, component names, and variant props;
+- state-specific content such as selected tab, open modal, error text, or changed button label;
+- nearby sibling frames that may represent hover, expanded, loading, empty, success, or error states.
 
-### 3. Build a design inventory before implementation
+Remember that the current exporter removes hidden nodes and defaults to a maximum parse depth. Missing children do not prove that hidden/omitted states do not exist. If the necessary state is outside the selected root, request a broader or separate export.
 
-From the selected subtree, list:
+If multiple candidates remain materially different, ask one focused question. Otherwise state which path you selected and why.
 
-- hierarchy and major sections;
-- exact viewport and content dimensions;
-- layout direction, gap, padding, alignment, overflow, and positioning;
-- typography and text content;
-- colors, borders, radii, shadows, and opacity;
-- instances and repeated structures;
-- images, vectors, and asset references;
-- semantic roles, patterns, responsive hints, and interactions, excluding any ARIA labeling metadata.
+Extract the target with `get --with-tokens`. Also extract sibling state frames only when present and needed; do not pull the entire board.
 
-Resolve `$cN`, `$fN`, and `$sN` through `tokens`; `css-vars` can generate a starting token block. Prefer meaningful existing project variables over introducing raw generated names.
+### 3. Create an evidence-based design inventory
 
-### 4. Map the design to web layout
+Run `inventory`, `diagnostics`, `interactions`, and `assets` on the selected path. Treat diagnostic findings as risks to investigate, not unconditional blockers. Before implementation, capture:
 
-Use semantic markup and normal flow first. Semantic element selection must not generate or infer `aria-label` or related ARIA labeling attributes:
+- **geometry:** viewport, section order, content bounds, layout direction, wrapping, gap, padding, alignment, constraints, overflow, and true absolute layers;
+- **visual tokens:** backgrounds, text colors, borders, radii, opacity, shadows, blur, and blend mode;
+- **type:** exact content, family, size, weight, line-height, letter-spacing, alignment, decoration, and wrapping/truncation;
+- **reuse:** instances, component names, variants, repeated rows/cards, and project equivalents;
+- **assets:** images, vectors, image node IDs, fit/crop, displayed dimensions, and unresolved bytes;
+- **behavior:** prototype reactions, heuristic roles/patterns/states, variants, and sibling state frames;
+- **responsive evidence:** fill/hug/fixed sizing, min/max dimensions, constraints, wrapping, clipping, and repeated desktop/mobile frames.
 
-- `l: "row" | "col"` → flex row/column.
-- `g`, `p`, `j`, and `al` → gap, padding, justify-content, align-items.
-- `w: "fill"` / `h: "fill"` → fill available space; `"hug"` → intrinsic size.
-- numeric dimensions are CSS pixels at the design viewport.
-- `ps: "abs"` with `x`/`y` is genuine absolute positioning evidence.
-- `of` controls overflow; do not discard clipping or scrolling behavior.
+Resolve `$cN`, `$fN`, and `$sN` through the included tokens. Token maps can legitimately be empty when extraction was disabled. Map values to an existing project token when the computed value and purpose match; do not map by similar name alone.
 
-Do not mechanically assign fixed width/height to every node. Preserve fixed dimensions for icons, artwork, and true fixed controls, but use flow/flex/grid for content and containers. Scale or constrain mobile screens using the project's established responsive strategy rather than globally shrinking the page.
+Treat `sm`, `pi`, and `rs.breakpoint` as heuristics produced from layer names and geometry, not authored requirements. Also account for exporter lossiness: text/image nodes omit many common geometry/style fields, ordinary node IDs are not retained, and image `oS` is currently the displayed node box rather than decoded bitmap intrinsic dimensions.
 
-For text, preserve family, size, weight, line-height, letter-spacing, alignment, and wrapping. Check Chinese font fallback and verify the font files/loading already used by the product.
+Maintain a short decision ledger for ambiguity:
 
-### 5. Reuse and componentize
+| Item | Evidence | Decision | Confidence |
+|---|---|---|---|
+| target frame | path/name/size | selected state | high |
+| card click | `ia` action or sibling frame | route/state change | high/medium |
+| mobile layout | constraints or mobile frame | breakpoint behavior | high/medium |
+| missing icon | vector without path | unresolved asset | high |
 
-Apply hints in this order:
+Never silently turn low-confidence guesses into product behavior.
 
-1. existing project component that visibly and behaviorally matches;
-2. existing project token or shared style;
-3. snapshot `instance`, `componentName`, semantic role, and pattern metadata;
-4. raw visual properties.
+### 4. Reconstruct layout from intent
 
-Repeated rows/cards/navigation items or source-level reusable concepts should be one component rendered from data, not duplicated markup. Keep page-specific composition in the page and generic behavior in shared components, matching project conventions.
+Map snapshot layout to web primitives:
 
-### 6. Handle assets faithfully
+- `l: row|col` → flex row/column;
+- `g`, `p`, `j`, `al`, `wr` → gap, padding, justification, alignment, wrapping;
+- `w/h: fill` → available space; `hug` → intrinsic/content size; current exports commonly use rounded numeric sizes plus `rs.fluid`/`rs.grow` instead of `fill`;
+- `minW/maxW/minH/maxH` and `cn` → CSS constraints and responsive anchoring when present (the current exporter emits `cn` but not min/max keys);
+- numeric dimensions → design pixels at that frame's viewport, often rounded by the exporter;
+- `ps: abs` plus `x/y` → absolute positioning only where layering is intentional;
+- `of` → clipping, visible overflow, or scrolling; preserve it deliberately.
 
-Run `assets` for image/vector inventory.
+Use normal flow, flex, and grid for structural layout. Reserve absolute positioning for overlays, badges, floating artwork, and other explicitly absolute nodes. Do not assign fixed width/height to every layer. Preserve fixed geometry for icons, controls, and art; let text/content containers size naturally unless the design proves clipping.
 
-- `img.nId` is a Figma node ID that may support later export; `oS`, `ft`, and `alt` describe rendering.
-- Some plugin exports omit `imageRef`; absence of a hash does not authorize approximation.
-- Vector records may not include SVG path data. Search project assets/components for a clear glyph match. A matching glyph matters more than a similar filename.
-- Explicitly set both width and height for icons/images and preserve object-fit/crop behavior.
-- Use snapshot/provided artwork as files rather than recreating complex imagery in CSS.
+For responsive behavior, derive rules from constraints and multiple frames rather than scaling the whole page. Establish container max-width, fluid/fixed columns, wrap/collapse behavior, edge padding, and overflow per region. Test one narrower and one wider viewport in addition to the design viewport.
 
-If required artwork is unavailable, implement the surrounding layout, clearly identify the unresolved nodes/paths, and ask for exports or screenshots instead of silently replacing them.
+Typography is geometry: exact font availability, weight mapping, line-height, letter-spacing, and wrap width often explain major pixel drift. Verify Chinese/CJK fallback and do not default to Inter.
 
-### 7. Implement incrementally
+### 5. Map and componentize before styling details
 
-Build one major section at a time. After each section:
+For each visible building block, choose in this order:
 
-- verify DOM/layout structure;
-- check text wrapping and overflow;
-- check repeated elements are data-driven/components;
-- compare dimensions and tokens against the selected snapshot subtree.
+1. an existing project component with matching visual contract and behavior;
+2. an existing component extended through its supported variants/slots;
+3. a local reusable component for repeated or stateful UI;
+4. page-only semantic markup for genuinely unique composition.
 
-Avoid unrelated refactors.
+Compare candidates by purpose, props, hierarchy, states, and rendered appearance—not filename alone. Repeated structures must be data-driven. Keep route composition in the page, generic behavior in shared components, and avoid premature global abstractions.
 
-### 8. Validate
+Use the project's tokens when they reproduce the design. If the snapshot has a genuinely missing value, prefer a narrowly scoped variable or style over scattering literals; do not alter global tokens just to force one page to match.
 
-- Run the app at the target viewport.
-- Capture a screenshot if browser tooling is available and compare against a Figma screenshot/reference. The JSON describes structure but is not itself a visual oracle.
-- Check at least: spacing, type metrics, clipping, scroll behavior, backgrounds, borders, shadows, icons/images, repeated item count, and interaction states.
-- Also test one narrower and one wider viewport unless the route is intentionally fixed-canvas.
-- Run every validation required by project instructions (build, ESLint, stylelint, filename checks, tests).
+### 6. Reconstruct static designs into working interactions
 
-## Ambiguity and limitations
+Treat interaction evidence in this order:
 
-Ask a focused question when multiple same-named screen states remain indistinguishable. Do not guess which state the user wants.
+1. explicit `ia` trigger/action/destination-name data;
+2. sibling frames or variants showing before/after states;
+3. `variantProps`, `sm.state`, `pi.pattern`, and component identity (all except `variantProps` may be heuristic);
+4. visible affordances plus established project convention;
+5. assumption—confirm or report rather than inventing domain behavior.
 
-A snapshot can encode geometry and styles without screenshots or vector/image bytes. State this limitation precisely when it blocks pixel fidelity; do not treat missing binary artwork as a reason to discard reliable layout/text/token data.
+Build a behavior matrix before coding any non-trivial interaction:
+
+| Element | Initial state | Trigger | Transition/action | Result/target | Evidence |
+|---|---|---|---|---|---|
+
+Then implement with the project's existing router and state primitives:
+
+- links/navigation change route or URL instead of using inert click handlers;
+- tabs/segmented controls maintain one selected value and switch the matching panel;
+- accordions, dropdowns, drawers, and modals have explicit open/closed state and deterministic close behavior;
+- forms use labels visible in the design, preserve values, validate at the appropriate time, and expose evidenced error/success/loading states;
+- carousels/pagers update active item, controls, indicators, and overflow consistently;
+- hover/focus/pressed/selected/disabled/loading states use CSS state selectors for transient visuals and application state for persistent transitions;
+- animations express the demonstrated transition, honor project motion tokens, and avoid decorative motion not evidenced by the design.
+
+Use native `button`, `a`, `input`, `select`, and other semantic controls where applicable. Preserve keyboard behavior available from native controls and the project's existing primitives, while honoring the rule not to generate ARIA labeling attributes.
+
+If only one static frame exists, implement safe platform behavior (for example button activation and text input) but do not invent destinations, API effects, destructive actions, hidden panels, or business rules. Report unresolved actions.
+
+### 7. Handle assets without approximation
+
+- Preserve the image's displayed box, `object-fit`, crop rectangle, clipping, radius, and opacity when evidenced. Do not treat `oS` as intrinsic bitmap size in current exports.
+- Prefer an exact existing project asset or component; verify visually, not just by name.
+- Use provided/exported raster or SVG files for complex artwork rather than rebuilding them with CSS.
+- A vector record without path data cannot be faithfully reconstructed from name, size, and color alone.
+- Explicitly size icons/images to prevent layout shift and accidental intrinsic sizing.
+- Do not commit placeholder URLs or use emoji/unrelated glyphs as stand-ins.
+
+When required bytes are absent, finish unaffected structure, list exact unresolved node paths/IDs, and request the needed export or screenshot.
+
+### 8. Implement and validate incrementally
+
+Implement one major section or behavior at a time. After each unit:
+
+1. render at the exact design viewport;
+2. verify hierarchy, computed bounds, overflow, and text wrapping;
+3. exercise the interaction and every evidenced state;
+4. compare against the source screenshot/state frame if available;
+5. fix the current unit before building on it.
+
+Prefer targeted fixes over page-wide rewrites. Validate both visuals and behavior; a visually accurate default state with broken transitions is incomplete.
+
+### 9. Perform final QA
+
+At minimum verify:
+
+- section dimensions, alignment, spacing, clipping, scroll containers, and layering;
+- font loading, text metrics, wrapping, truncation, and CJK fallback;
+- exact fills, borders, radii, shadows, opacity, images, icons, and crops;
+- repeated item count/content/order and correct component variants;
+- default, hover, focus, pressed, selected, disabled, loading, empty, success, and error states that are evidenced or required by existing components;
+- navigation targets, modal/dropdown dismissal, form state, keyboard-native behavior, and reduced-motion compatibility where the project supports it;
+- design viewport plus one narrower and one wider viewport;
+- no console errors, broken assets, dead controls, placeholder content, or unrelated regressions.
+
+Use side-by-side comparison first; use a semi-transparent overlay or pixel diff when screenshot tooling exists. Diagnose discrepancies in this order: font/assets → outer geometry → layout mode/constraints → spacing → typography → decoration → micro-alignment. Do not polish shadows while the font or container width is wrong.
+
+Finally run all repository validation commands and summarize implemented paths, interaction decisions, validation performed, and any unresolved fidelity blockers.
+
+## Completion contract
+
+Do not claim pixel-perfect or 1:1 fidelity unless an actual rendered screenshot was compared at the same viewport. If no source screenshot or asset bytes exist, say that structural/style fidelity was implemented from snapshot data and precisely list what could not be visually verified.

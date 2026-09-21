@@ -9,7 +9,7 @@
 | Skill | 说明 | 依赖 |
 | --- | --- | --- |
 | [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | 将结构化数据、查询结果、日志和报告导出为 `.temp/` 下带日期的 `.xlsx` 工作簿。包含支持显式列、自动列宽和多工作表的通用导出脚本。 | Node.js、`xlsx` |
-| [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | 分析插件导出的 `.temp/figma-snapshot.json`，逐步提取页面结构、设计 Token、布局、字体和资源信息，并结合现有项目技术栈实现 HTML/CSS、React、Vue 等页面。包含 Snapshot 检查脚本和格式参考文档。 | Figma 桌面版、**Figma to AI JSON** 插件、Node.js |
+| [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | 将插件导出的 `.temp/figma-snapshot.json` 页面与状态转换为高保真、响应式、可交互的 HTML/CSS、React、Vue、Svelte 等 Web UI。包含渐进式设计清单、导出保真度诊断、交互、资源和 Token 检查工具，以及视觉与行为验证指南。 | Figma 桌面版、**Figma to AI JSON** 插件、Node.js |
 | [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | 当任务需要临时脚本进行自动化、数据处理、代码生成、仓库维护或调试时，默认优先使用 Node.js 和内置模块，而不是 Python。 | Node.js |
 
 ## 安装本仓库的 Skills

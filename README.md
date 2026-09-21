@@ -9,7 +9,7 @@ A collection of on-demand Agent Skills for [pi coding agent](https://pi.dev).
 | Skill | Description | Requirements |
 | --- | --- | --- |
 | [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | Exports structured data, query results, logs, and reports to dated `.xlsx` workbooks under `.temp/`. Includes a reusable exporter with explicit columns, automatic widths, and multi-sheet support. | Node.js, `xlsx` |
-| [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | Analyzes plugin-exported `.temp/figma-snapshot.json` files, progressively extracts page structure, design tokens, layout, typography, and asset information, then implements the design in the existing HTML/CSS, React, Vue, or other frontend stack. Includes a snapshot inspection script and schema reference. | Figma desktop app, **Figma to AI JSON** plugin, Node.js |
+| [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | Converts plugin-exported `.temp/figma-snapshot.json` screens and states into high-fidelity, responsive, interactive UI in the existing HTML/CSS, React, Vue, Svelte, or other web stack. Includes progressive inventory, export-fidelity diagnostics, interaction, asset, and token inspection plus visual/behavioral validation guidance. | Figma desktop app, **Figma to AI JSON** plugin, Node.js |
 | [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | Prefers Node.js and its built-in modules over Python when temporary scripts are needed for automation, data processing, code generation, repository maintenance, or debugging. | Node.js |
 
 ## Installing the Skills from This Repository
