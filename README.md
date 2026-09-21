@@ -8,6 +8,7 @@ A collection of on-demand Agent Skills for [pi coding agent](https://pi.dev).
 
 | Skill | Description | Requirements |
 | --- | --- | --- |
+| [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | Exports structured data, query results, logs, and reports to dated `.xlsx` workbooks under `.temp/`. Includes a reusable exporter with explicit columns, automatic widths, and multi-sheet support. | Node.js, `xlsx` |
 | [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | Analyzes plugin-exported `.temp/figma-snapshot.json` files, progressively extracts page structure, design tokens, layout, typography, and asset information, then implements the design in the existing HTML/CSS, React, Vue, or other frontend stack. Includes a snapshot inspection script and schema reference. | Figma desktop app, **Figma to AI JSON** plugin, Node.js |
 | [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | Prefers Node.js and its built-in modules over Python when temporary scripts are needed for automation, data processing, code generation, repository maintenance, or debugging. | Node.js |
 
@@ -46,6 +47,10 @@ Project-installed Skills are available only within that project. Pi discovers th
 Pi uses each skill's `description` to decide when to load it. You can simply describe your task, for example:
 
 ```text
+Export these query results to an Excel workbook in .temp with separate summary and detail sheets.
+```
+
+```text
 Implement the "Asset Overview" screen from .temp/figma-snapshot.json in the current Vue project.
 ```
 
@@ -56,6 +61,7 @@ Write a temporary script that scans the src directory and generates a component 
 If Skill Commands are enabled, you can load a skill explicitly:
 
 ```text
+/skill:export-data-to-excel
 /skill:figma-snapshot-to-html
 /skill:prefer-nodejs-scripts
 ```
