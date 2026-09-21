@@ -1,0 +1,17 @@
+{
+  "name": "figma-mcp-local-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local read-oriented MCP and WebSocket bridge for the Talk to Figma MCP Plugin",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs",
+    "test": "node --test server.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "ws": "8.21.3",
+    "zod": "3.25.76"
+  }
+}

@@ -1,6 +1,6 @@
 # Fidelity and interaction playbook
 
-Use this reference after selecting a concrete screen subtree. It focuses on the failure modes that most affect Figma-to-web accuracy and on turning static state frames into maintainable behavior.
+Use this reference after selecting a concrete Figma screen through Talk to Figma MCP. It focuses on the failure modes that most affect Figma-to-web accuracy and on turning visible state frames into maintainable behavior.
 
 ## 1. Fidelity hierarchy
 
@@ -22,25 +22,23 @@ Do not compensate for a wrong font by changing container dimensions. Correct the
 - Distinguish outer size from content size: borders and padding affect CSS box dimensions.
 - Determine whether `gap`, margins, or parent padding creates each space; do not combine them accidentally.
 - Treat repeated equal spacing as a likely token, but resolve it against project tokens by value and purpose.
-- Preserve fractional values when the snapshot provides them, but recognize that the current exporter already rounds container dimensions and absolute offsets; do not imply unavailable subpixel precision.
+- Preserve fractional values returned by `absoluteBoundingBox`; round only when the target project or browser rendering requires it.
 - Check browser default styles on headings, paragraphs, buttons, inputs, and images. Reset locally or use project primitives.
 - For transformed/rotated elements, compare the untransformed layout box and visual bounding box separately.
 - Check z-order and clipping together; a correctly positioned child can still disappear under the wrong overflow ancestor.
 
-## 3. Figma sizing to CSS
+## 3. Figma geometry to CSS
 
-| Snapshot evidence | Likely web implementation | Verify |
+| MCP/screenshot evidence | Likely web implementation | Verify |
 |---|---|---|
-| `fill` in auto layout | flex growth or width/height 100% | sibling competition and min-width |
-| `hug` | intrinsic/fit-content/auto | wrapping and max constraints |
-| fixed numeric size | fixed design size | whether parent later scales/collapses |
-| row/column with gap | flex or grid | wrap, alignment, equal columns |
-| absolute x/y | positioned child in a positioned ancestor | anchor edge, z-index, clipping |
-| min/max dimensions (future/external exports) | CSS min/max constraints | current upstream exporter does not emit these keys |
-| clipped overflow | hidden/clip/scroll as evidenced | focus rings, menus, scrollbars |
-| repeated tracks | CSS grid or data-driven flex | column count and responsive collapse |
+| parent and child `absoluteBoundingBox` | derive relative offsets and occupied size | account for parent border, transform, and clipping |
+| repeated aligned bounds | flex or grid | gap, wrapping, equal tracks, and reading order |
+| intrinsic text wrapping in screenshot | natural flow or bounded text box | font loading and exact content width |
+| overlapping boxes in screenshot | positioned layers | anchor edge, stacking, masks, and clipping |
+| content outside the visible frame | hidden/clip/scroll as evidenced | screenshot alone may not distinguish clipping from scrolling |
+| explicit desktop/mobile frames | breakpoint-specific composition | compare stable and changed regions |
 
-Figma `fill` does not always mean `width: 100%`; in a flex row it often means `flex: 1 1 0` plus `min-width: 0`. Likewise, `hug` should not become a fixed measurement merely because the exported frame has a measured width.
+The reviewed bridge omits most Auto Layout sizing and constraint fields from detailed node responses. Do not infer `fill`, `hug`, flex growth, or breakpoints from dimensions alone. Prefer project layout conventions and verify the result against the rendered Figma image.
 
 ## 4. Typography checks
 
@@ -75,9 +73,9 @@ Use explicit desktop/mobile sibling frames as stronger evidence than inferred co
 
 ### Evidence levels
 
-- **A — explicit:** prototype `ia` describes trigger/action and possibly a destination name or URL; the current exporter does not retain destination node IDs.
-- **B — demonstrated:** sibling frame or variant shows the result.
-- **C — heuristic:** component identity plus `sm`/`pi` metadata suggests tabs, modal, input, carousel, link, etc.; current `sm`/`pi` values are inferred from names/geometry and require corroboration.
+- **A — explicit:** `get_reactions` returns a prototype trigger/action and destination.
+- **B — demonstrated:** sibling frame, component variant, or screenshot shows the result.
+- **C — structural:** node/component identity and visible structure suggest tabs, modal, input, carousel, link, etc.; corroborate this with the project or user.
 - **D — conventional:** visible affordance and project behavior imply a safe interaction.
 - **Unknown:** business result, route, network mutation, destructive effect, or hidden content is absent.
 
@@ -146,7 +144,7 @@ Do not add ARIA labeling attributes as part of this skill. Native semantics, vis
 Use precise completion language:
 
 - **Visually validated:** compared rendered screenshots at named viewports; describe remaining differences.
-- **Structurally validated:** snapshot geometry/tokens implemented and app checks pass, but no source screenshot was available.
+- **Structurally validated:** MCP geometry/styles were implemented and app checks pass, but screenshot comparison was unavailable.
 - **Partially blocked:** list missing image/vector node paths, unavailable fonts, ambiguous states, or unknown destinations.
 
 Never claim 1:1 or pixel-perfect output from JSON inspection alone.

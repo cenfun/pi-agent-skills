@@ -9,7 +9,7 @@ A collection of on-demand Agent Skills for [pi coding agent](https://pi.dev).
 | Skill | Description | Requirements |
 | --- | --- | --- |
 | [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | Exports structured data, query results, logs, and reports to dated `.xlsx` workbooks under `.temp/`. Includes a reusable exporter with explicit columns, automatic widths, and multi-sheet support. | Node.js, `xlsx` |
-| [`figma-snapshot-to-html`](skills/figma-snapshot-to-html/SKILL.md) | Converts plugin-exported `.temp/figma-snapshot.json` screens and states into high-fidelity, responsive, interactive UI in the existing HTML/CSS, React, Vue, Svelte, or other web stack. Includes progressive inventory, export-fidelity diagnostics, interaction, asset, and token inspection plus visual/behavioral validation guidance. | Figma desktop app, **Figma to AI JSON** plugin, Node.js |
+| [`figma-mcp-to-web`](skills/figma-mcp-to-web/SKILL.md) | Implements high-fidelity, responsive, interactive web UI from the currently open Figma Desktop document through the bundled local Node.js MCP/WebSocket bridge and Talk to Figma plugin. Uses progressive selection, node, style, component, asset, and screenshot inspection with visual/behavioral validation. | Node.js, Figma Desktop, **Talk to Figma MCP Plugin**, configured Pi MCP adapter |
 | [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | Prefers Node.js and its built-in modules over Python when temporary scripts are needed for automation, data processing, code generation, repository maintenance, or debugging. | Node.js |
 
 ## Installing the Skills from This Repository
@@ -31,6 +31,8 @@ cp -R pi-agent-skills/skills/* ~/.pi/agent/skills/
 
 Globally installed Skills are available in every project. Pi will discover them the next time it starts.
 
+`figma-mcp-to-web` also bundles a local MCP/WebSocket bridge. After copying the skill, complete its one-time dependency and `pi-mcp-adapter` setup in [`skills/figma-mcp-to-web/bridge/README.md`](skills/figma-mcp-to-web/bridge/README.md). With the documented `keep-alive` configuration, Pi starts the bridge automatically; the Figma Community plugin must still be opened by the user inside Figma Desktop.
+
 ### Project installation
 
 Copy the contents of the repository's `skills` directory to `.pi/skills` in the target project:
@@ -51,7 +53,7 @@ Export these query results to an Excel workbook in .temp with separate summary a
 ```
 
 ```text
-Implement the "Asset Overview" screen from .temp/figma-snapshot.json in the current Vue project.
+Implement the currently selected "Asset Overview" Figma frame in the current Vue project through the connected Talk to Figma channel.
 ```
 
 ```text
@@ -62,7 +64,7 @@ If Skill Commands are enabled, you can load a skill explicitly:
 
 ```text
 /skill:export-data-to-excel
-/skill:figma-snapshot-to-html
+/skill:figma-mcp-to-web
 /skill:prefer-nodejs-scripts
 ```
 
