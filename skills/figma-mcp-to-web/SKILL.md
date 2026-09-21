@@ -60,7 +60,7 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` and `lifecycle: "keep-alive"`. Pi will then start the combined stdio MCP server and `ws://localhost:3055` relay automatically at session startup. Do not run `cursor-talk-to-figma-socket` or `cursor-talk-to-figma-mcp` alongside it.
+Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` and `lifecycle: "keep-alive"`. Pi will then start the combined stdio MCP server and `ws://localhost:3055` relay automatically at session startup. Ensure no other process is using port 3055.
 
 A Skill cannot launch a Figma Community plugin inside Figma Desktop. The user must open **Talk To Figma MCP Plugin** once and click **Connect** if it was opened before the bridge became available.
 

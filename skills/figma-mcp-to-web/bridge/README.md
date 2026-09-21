@@ -52,7 +52,7 @@ Configure `pi-mcp-adapter` with an absolute path:
 
 Use `~/.config/mcp/mcp.json` for a shared global MCP configuration, `.mcp.json` for a project configuration, or the Pi adapter's own override file. Run `/reload` after changing configuration.
 
-With `lifecycle: "keep-alive"`, Pi starts the combined MCP/WebSocket process automatically at session startup. Do not run `cursor-talk-to-figma-socket` or `cursor-talk-to-figma-mcp` at the same time because only one process can listen on port 3055.
+With `lifecycle: "keep-alive"`, Pi starts the combined MCP/WebSocket process automatically at session startup. Ensure no other process is listening on port 3055.
 
 Figma itself does not allow an external process to launch a Community plugin. Open Figma Desktop and run **Talk To Figma MCP Plugin**, then click **Connect**. Do not consider setup complete until the plugin displays:
 
