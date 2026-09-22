@@ -24,8 +24,7 @@ Configure `pi-mcp-adapter` with an absolute path:
     "talk-to-figma": {
       "command": "node",
       "args": ["<absolute-skill-dir>/bridge/server.mjs"],
-      "lifecycle": "keep-alive",
-      "idleTimeout": 0,
+      "lifecycle": "lazy",
       "requestTimeoutMs": 120000,
       "includeTools": [
         "bridge_status",
@@ -52,9 +51,9 @@ Configure `pi-mcp-adapter` with an absolute path:
 
 Use `~/.config/mcp/mcp.json` for a shared global MCP configuration, `.mcp.json` for a project configuration, or the Pi adapter's own override file. Run `/reload` after changing configuration.
 
-With `lifecycle: "keep-alive"`, Pi starts the combined MCP/WebSocket process automatically at session startup. Ensure no other process is listening on port 3055.
+With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `talk-to-figma` tool is first called, avoiding connection errors in sessions that do not use Figma. The adapter's default idle timeout applies after use. Ensure no other process is listening on port 3055 when starting a Figma workflow.
 
-Figma itself does not allow an external process to launch a Community plugin. Open Figma Desktop and run **Talk To Figma MCP Plugin**, then click **Connect**. Do not consider setup complete until the plugin displays:
+Figma itself does not allow an external process to launch a Community plugin. Start the bridge by calling `bridge_status` (or another `talk-to-figma` tool), then open Figma Desktop, run **Talk To Figma MCP Plugin**, and click **Connect**. Do not consider setup complete until the plugin displays:
 
 ```text
 Connected to server in channel: <channel>
