@@ -1,6 +1,6 @@
 # Fidelity and interaction playbook
 
-Use this reference after selecting a concrete Figma screen through Talk to Figma MCP. It focuses on the failure modes that most affect Figma-to-web accuracy and on turning visible state frames into maintainable behavior.
+Use this reference after selecting a concrete Figma screen through figma-mcp-to-web. It focuses on the failure modes that most affect Figma-to-web accuracy and on turning visible state frames into maintainable behavior.
 
 ## 1. Fidelity hierarchy
 

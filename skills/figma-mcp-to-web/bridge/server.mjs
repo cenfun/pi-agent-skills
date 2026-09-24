@@ -8,11 +8,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
 
-const DEFAULT_PORT = 3055;
+const DEFAULT_PORT = 3081;
 const DEFAULT_HOST = 'localhost';
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024 * 1024;
 const MAX_CHANNEL_LENGTH = 128;
+const MAX_INLINE_SVG_BYTES = 512 * 1024;
 
 function asPositiveInteger(value, fallback, name) {
   if (value === undefined || value === '') return fallback;
@@ -44,6 +45,43 @@ function errorResult(error) {
     isError: true,
     content: [{ type: 'text', text: `Error: ${errorMessage(error)}` }],
   };
+}
+
+const SUPPORTED_EXPORT_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/svg+xml',
+  'application/pdf',
+]);
+
+export function decodeSvgExport(imageData) {
+  return Buffer.from(imageData, 'base64').toString('utf8');
+}
+
+export function svgContainsRasterImage(imageData) {
+  const svg = decodeSvgExport(imageData);
+  return /<image(?:\s|>)/i.test(svg) || /data:image\/(?!svg\+xml)/i.test(svg);
+}
+
+export function detectExportMimeType(imageData, reportedMimeType) {
+  const bytes = Buffer.from(imageData, 'base64');
+  if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png';
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.subarray(0, 5).toString('ascii') === '%PDF-') return 'application/pdf';
+
+  const textPrefix = bytes.subarray(0, 4096).toString('utf8').replace(/^\uFEFF/, '').trimStart();
+  const withoutPreamble = textPrefix.replace(/^(?:(?:<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->)\s*)*/i, '');
+  if (/^<svg(?:\s|>)/i.test(withoutPreamble)) return 'image/svg+xml';
+
+  if (typeof reportedMimeType === 'string' && reportedMimeType.trim()) {
+    const normalized = reportedMimeType.split(';', 1)[0].trim().toLowerCase();
+    if (normalized === 'image/jpg') return 'image/jpeg';
+    if (normalized === 'image/svg') return 'image/svg+xml';
+    if (SUPPORTED_EXPORT_MIME_TYPES.has(normalized)) return normalized;
+  }
+  return 'application/octet-stream';
 }
 
 export class FigmaPluginBridge {
@@ -231,7 +269,7 @@ export class FigmaPluginBridge {
       if (sockets.length > 1) throw new Error(`Channel ${this.activeChannel} has multiple plugin connections`);
     }
     if (channels.length === 0) {
-      throw new Error('No Talk to Figma plugin is connected. Open the plugin in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".');
+      throw new Error('No bundled Figma plugin is connected. Run "Figma MCP to Web Plugin" in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".');
     }
     if (channels.length > 1) throw new Error(`Multiple Figma channels are connected (${channels.join(', ')}); call join_channel first`);
     this.activeChannel = channels[0];
@@ -288,7 +326,7 @@ export class FigmaPluginBridge {
     } else if (channels.length > 1) {
       connectionMessage = `Multiple Figma channels are connected (${channels.join(', ')}). Select one with join_channel.`;
     } else {
-      connectionMessage = 'Open Talk To Figma MCP Plugin in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".';
+      connectionMessage = 'Run "Figma MCP to Web Plugin" in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".';
     }
     return {
       ready,
@@ -329,14 +367,14 @@ function registerJsonTool(server, bridge, name, description, schema, command = n
 }
 
 export function createMcpServer(bridge) {
-  const server = new McpServer({ name: 'figma-mcp-local-bridge', version: '1.0.0' });
+  const server = new McpServer({ name: 'figma-mcp-to-web-bridge', version: '1.0.0' });
 
   server.tool('bridge_status', 'Show local bridge and connected Figma plugin status', {}, async () => textResult(bridge.status()));
-  server.tool('list_channels', 'List channels currently connected by Talk to Figma plugins', {}, async () => textResult({ channels: bridge.connectedChannels(), activeChannel: bridge.activeChannel }));
+  server.tool('list_channels', 'List channels currently connected by bundled Figma plugins', {}, async () => textResult({ channels: bridge.connectedChannels(), activeChannel: bridge.activeChannel }));
   server.tool(
     'join_channel',
-    'Select a connected Talk to Figma channel. Automatically optional when exactly one plugin is connected.',
-    { channel: z.string().min(1).describe('Channel shown by the Talk to Figma plugin') },
+    'Select a connected bundled Figma plugin channel. Automatically optional when exactly one plugin is connected.',
+    { channel: z.string().min(1).describe('Channel shown by the bundled Figma plugin') },
     async ({ channel }) => {
       try {
         return textResult(`Successfully selected channel: ${bridge.selectChannel(channel)}`);
@@ -373,35 +411,60 @@ export function createMcpServer(bridge) {
     server,
     bridge,
     'get_reactions',
-    'Get prototype reactions. WARNING: the current plugin temporarily highlights matching nodes on the canvas.',
+    'Read prototype reactions from requested subtrees without modifying the Figma canvas.',
     { nodeIds: z.array(z.string().min(1)).min(1) },
   );
 
   server.tool(
     'export_node_as_image',
-    'Export a Figma node as an image. The current Community plugin always returns PNG.',
+    'Export a Figma node through the bundled local plugin. Request SVG for vector icons; request PNG for screenshots, large backgrounds, and bitmap nodes. Always inspect MIME and embedded-raster warnings.',
     {
       nodeId: z.string().min(1),
-      format: z.enum(['PNG', 'JPG', 'SVG', 'PDF']).optional(),
-      scale: z.number().positive().optional(),
+      format: z.enum(['PNG', 'JPG', 'SVG', 'PDF']).describe('Required: use SVG for vector icons and PNG for screen references, large backgrounds, or bitmap content'),
+      scale: z.number().positive().optional().describe('Raster export scale; normally leave at 1 for SVG'),
     },
     async ({ nodeId, format, scale }) => {
       try {
+        const requestedFormat = format;
         const result = await bridge.sendCommand('export_node_as_image', {
           nodeId,
-          format: format ?? 'PNG',
+          format: requestedFormat,
           scale: scale ?? 1,
         });
         if (!result || typeof result.imageData !== 'string') {
           throw new Error('Figma plugin returned no image data');
         }
-        return {
-          content: [{
-            type: 'image',
-            data: result.imageData,
-            mimeType: result.mimeType || 'image/png',
-          }],
-        };
+        const mimeType = detectExportMimeType(result.imageData, result.mimeType);
+        if (mimeType === 'application/octet-stream') {
+          throw new Error(`Unable to determine the exported MIME type for node ${nodeId}`);
+        }
+        const content = [{ type: 'image', data: result.imageData, mimeType }];
+        if (requestedFormat === 'SVG' && mimeType === 'image/svg+xml') {
+          const svgSource = decodeSvgExport(result.imageData);
+          if (Buffer.byteLength(svgSource, 'utf8') <= MAX_INLINE_SVG_BYTES) {
+            content.push({
+              type: 'text',
+              text: `Exact SVG source for node ${nodeId}:\n${svgSource}`,
+            });
+          } else {
+            content.push({
+              type: 'text',
+              text: `Warning: SVG source for node ${nodeId} exceeds ${MAX_INLINE_SVG_BYTES} bytes and was not inlined. Select a smaller asset node.`,
+            });
+          }
+        }
+        if (requestedFormat === 'SVG' && mimeType !== 'image/svg+xml') {
+          content.push({
+            type: 'text',
+            text: `Warning: SVG was requested for node ${nodeId}, but the plugin returned ${mimeType}. Do not use this raster result as the implementation icon; use an exact project SVG or request a direct SVG export from Figma.`,
+          });
+        } else if (requestedFormat === 'SVG' && svgContainsRasterImage(result.imageData)) {
+          content.push({
+            type: 'text',
+            text: `Warning: node ${nodeId} was exported as SVG, but the SVG contains an embedded raster image. Do not use it for an icon that must be purely vector.`,
+          });
+        }
+        return { content };
       } catch (error) {
         return errorResult(error);
       }

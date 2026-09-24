@@ -1,13 +1,13 @@
 {
-  "name": "figma-mcp-local-bridge",
+  "name": "figma-mcp-to-web-bridge",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Local read-oriented MCP and WebSocket bridge for the Talk to Figma MCP Plugin",
+  "description": "Local read-oriented MCP and WebSocket bridge for Figma MCP to Web Plugin",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs",
-    "test": "node --test server.test.mjs"
+    "check": "node --check server.mjs && node --check ../plugin/code.js",
+    "test": "node --test server.test.mjs plugin.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

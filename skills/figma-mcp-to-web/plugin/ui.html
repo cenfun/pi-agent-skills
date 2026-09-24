@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Figma MCP to Web Plugin</title>
+  <style>
+    :root { color-scheme: light dark; font: 12px/1.5 Inter, system-ui, sans-serif; }
+    html, body { overflow: hidden; }
+    body { box-sizing: border-box; margin: 0; padding: 16px; }
+    h1 { margin: 0 0 12px; font-size: 15px; }
+    .row { display: flex; gap: 8px; }
+    input { width: 84px; padding: 7px 8px; }
+    button { padding: 7px 12px; cursor: pointer; }
+    #status { margin-top: 12px; padding: 10px; border-radius: 6px; background: rgba(128,128,128,.14); overflow-wrap: anywhere; }
+    .connected { color: #16803c; }
+    .error { color: #c93232; }
+    .hint { margin-top: 12px; opacity: .72; }
+  </style>
+</head>
+<body>
+  <h1>Figma MCP to Web Plugin</h1>
+  <div class="row">
+    <label for="port">Bridge port</label>
+    <input id="port" type="number" min="1" max="65535" value="3081">
+    <button id="connect" type="button">Connect</button>
+  </div>
+  <div id="status">Not connected</div>
+  <div class="hint">Start the bundled bridge first, then connect this plugin. SVG exports are produced directly by the Figma Plugin API.</div>
+
+  <script>
+    const state = { socket: null, channel: null, connected: false };
+    const portInput = document.getElementById('port');
+    const connectButton = document.getElementById('connect');
+    const status = document.getElementById('status');
+
+    function setStatus(message, className = '') {
+      status.textContent = message;
+      status.className = className;
+    }
+
+    function makeChannel() {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      let value = '';
+      for (let i = 0; i < 8; i += 1) value += chars[Math.floor(Math.random() * chars.length)];
+      return value;
+    }
+
+    function sendEnvelope(message) {
+      if (!state.socket || state.socket.readyState !== WebSocket.OPEN || !state.channel) return;
+      state.socket.send(JSON.stringify({
+        type: 'message',
+        channel: state.channel,
+        message,
+      }));
+    }
+
+    function disconnect() {
+      if (state.socket) state.socket.close();
+      state.socket = null;
+      state.channel = null;
+      state.connected = false;
+      portInput.disabled = false;
+      connectButton.textContent = 'Connect';
+      setStatus('Not connected');
+    }
+
+    function connect() {
+      const port = Number(portInput.value) || 3081;
+      setStatus('Connecting…');
+      portInput.disabled = true;
+      const socket = new WebSocket(`ws://localhost:${port}`);
+      state.socket = socket;
+
+      socket.onopen = () => {
+        state.channel = makeChannel();
+        socket.send(JSON.stringify({ type: 'join', channel: state.channel }));
+      };
+
+      socket.onmessage = event => {
+        let packet;
+        try {
+          packet = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (packet.type === 'system' && packet.channel === state.channel) {
+          const joined = typeof packet.message === 'string'
+            ? packet.message.startsWith('Joined channel:')
+            : Boolean(packet.message && packet.message.result);
+          if (joined) {
+            state.connected = true;
+            connectButton.textContent = 'Disconnect';
+            setStatus(`Connected to server in channel: ${state.channel}`, 'connected');
+          }
+          return;
+        }
+
+        if (packet.type === 'error') {
+          setStatus(`Bridge error: ${packet.message}`, 'error');
+          return;
+        }
+
+        const message = packet.message;
+        if (packet.type === 'broadcast' && message && message.id && message.command) {
+          parent.postMessage({
+            pluginMessage: {
+              type: 'execute-command',
+              id: message.id,
+              command: message.command,
+              params: message.params || {},
+            },
+          }, '*');
+        }
+      };
+
+      socket.onerror = () => setStatus('Unable to connect to the local bridge', 'error');
+      socket.onclose = () => disconnect();
+    }
+
+    connectButton.addEventListener('click', () => {
+      if (state.connected || state.socket) disconnect();
+      else connect();
+    });
+
+    window.onmessage = event => {
+      const message = event.data.pluginMessage;
+      if (!message) return;
+
+      if (message.type === 'command-result') {
+        sendEnvelope({ id: message.id, result: message.result });
+      } else if (message.type === 'command-error') {
+        sendEnvelope({ id: message.id, error: message.error });
+      } else if (message.type === 'command-progress') {
+        if (!state.socket || state.socket.readyState !== WebSocket.OPEN) return;
+        state.socket.send(JSON.stringify({
+          type: 'progress_update',
+          channel: state.channel,
+          id: message.commandId,
+          message: {
+            id: message.commandId,
+            type: 'progress_update',
+            data: message,
+          },
+        }));
+      }
+    };
+  </script>
+</body>
+</html>

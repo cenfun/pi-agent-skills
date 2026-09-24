@@ -3,9 +3,15 @@
 This process combines two roles:
 
 1. an MCP server over stdio for Pi;
-2. a WebSocket relay on `ws://localhost:3055` for the Community **Talk To Figma MCP Plugin**.
+2. a WebSocket relay on `ws://localhost:3081` for the skill's bundled **Figma MCP to Web Plugin** development plugin.
 
-It exposes only read-oriented tools. `get_reactions` is the sole exception with a known temporary canvas-highlight side effect in the Community plugin and should remain approval-gated.
+It exposes only read-oriented tools. The bundled plugin's `get_reactions` implementation is also read-only and does not highlight or modify canvas nodes.
+
+## Asset export policy
+
+Call `export_node_as_image` with `format: "SVG"` for small vector icons, logos, marks, and line art. Use `format: "PNG"` for full-screen references, photos, image-fill nodes, textures, and large raster backgrounds. The bridge forwards the requested format and detects PNG, JPEG, SVG, and PDF payload signatures instead of blindly trusting plugin metadata.
+
+The bundled plugin exports SVG directly with the Figma Plugin API. For SVGs up to 512 KiB, the bridge returns the exact SVG source as text alongside the MCP image attachment so the asset can be written without tracing or reconstruction. It also verifies the payload signature and warns if an SVG request unexpectedly returns raster bytes or if the SVG contains an embedded raster `<image>`. Treat either warning as disqualifying for icons that must remain purely vector.
 
 ## One-time installation
 
@@ -21,7 +27,7 @@ Configure `pi-mcp-adapter` with an absolute path:
 ```json
 {
   "mcpServers": {
-    "talk-to-figma": {
+    "figma-mcp-to-web-bridge": {
       "command": "node",
       "args": ["<absolute-skill-dir>/bridge/server.mjs"],
       "lifecycle": "lazy",
@@ -42,8 +48,7 @@ Configure `pi-mcp-adapter` with an absolute path:
         "get_annotations",
         "get_reactions",
         "export_node_as_image"
-      ],
-      "approveTools": ["get_reactions"]
+      ]
     }
   }
 }
@@ -51,9 +56,9 @@ Configure `pi-mcp-adapter` with an absolute path:
 
 Use `~/.config/mcp/mcp.json` for a shared global MCP configuration, `.mcp.json` for a project configuration, or the Pi adapter's own override file. Run `/reload` after changing configuration.
 
-With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `talk-to-figma` tool is first called, avoiding connection errors in sessions that do not use Figma. The adapter's default idle timeout applies after use. Ensure no other process is listening on port 3055 when starting a Figma workflow.
+With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `figma-mcp-to-web-bridge` tool is first called, avoiding connection errors in sessions that do not use Figma. The adapter's default idle timeout applies after use. Ensure no other process is listening on port 3081 when starting a Figma workflow.
 
-Figma itself does not allow an external process to launch a Community plugin. Start the bridge by calling `bridge_status` (or another `talk-to-figma` tool), then open Figma Desktop, run **Talk To Figma MCP Plugin**, and click **Connect**. Do not consider setup complete until the plugin displays:
+Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Start the bridge by calling `bridge_status` (or another `figma-mcp-to-web-bridge` tool), then run **Figma MCP to Web Plugin** in Figma Desktop and click **Connect**. Do not consider setup complete until the plugin displays:
 
 ```text
 Connected to server in channel: <channel>
@@ -66,7 +71,7 @@ The plugin automatically joins the generated channel after connecting. If it was
 | Variable | Default | Purpose |
 |---|---:|---|
 | `FIGMA_BRIDGE_HOST` | `localhost` | WebSocket bind host; keep this loopback-only |
-| `FIGMA_BRIDGE_PORT` | `3055` | WebSocket port expected by the plugin |
+| `FIGMA_BRIDGE_PORT` | `3081` | WebSocket port expected by the plugin |
 | `FIGMA_BRIDGE_TIMEOUT_MS` | `120000` | Inactivity timeout for plugin commands |
 | `FIGMA_BRIDGE_MAX_PAYLOAD_BYTES` | `67108864` | Maximum incoming WebSocket message size |
 
