@@ -63,7 +63,7 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` and `lifecycle: "lazy"`. Calling `bridge_status` starts the combined stdio MCP server and `ws://localhost:3081` relay when needed. Ensure no other process is using port 3081.
+Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs`, `lifecycle: "lazy"`, and `idleTimeout: 30`. Calling `bridge_status` starts the combined stdio MCP server and `ws://localhost:3081` relay when needed. After 30 minutes without an MCP tool call, the adapter stops the bridge and closes the plugin connection; use `idleTimeout: 0` instead to keep it alive until the Pi session ends. Ensure no other process is using port 3081.
 
 A Skill cannot install or launch a Figma plugin inside Figma Desktop. Once, import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. For each session, run **Figma MCP to Web Plugin** and click **Connect** after the bridge is available. Do not run another plugin against the same bridge at the same time.
 
