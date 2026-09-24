@@ -2,13 +2,19 @@
 
 This bundled development plugin implements only the read commands used by this skill and exports SVG directly through the Figma Plugin API.
 
-## Install in Figma Desktop
+## One-time import in Figma Desktop
 
-1. Start the skill's bundled bridge by calling `bridge_status` from Pi.
-2. In Figma Desktop, open **Plugins → Development → Import plugin from manifest…**.
-3. Select this directory's `manifest.json`.
-4. Run **Figma MCP to Web Plugin** from **Plugins → Development**.
-5. Click **Connect** and wait for `Connected to server in channel: …`.
+1. Open **Plugins → Development → Import plugin from manifest…**.
+2. Select this directory's `manifest.json`.
+
+## Use in each session
+
+1. Call `bridge_status` from Pi to start the skill's lazy bundled bridge.
+2. Run **Figma MCP to Web Plugin** from **Plugins → Development**.
+3. Wait for the automatic connection to show `Connected to server in channel: …`.
+4. Confirm that Pi's next `bridge_status` result has `ready: true` before using read tools.
+
+The plugin may also be opened before the bridge starts. It retries automatically with exponential backoff, capped at five seconds, and reconnects after bridge restarts. **Disconnect** pauses automatic retries so the port can be changed; **Connect** resumes them.
 
 Do not run another Figma MCP plugin against the same bridge at the same time. Multiple plugin connections require explicit channel selection and can make it easy to target the wrong Figma file.
 

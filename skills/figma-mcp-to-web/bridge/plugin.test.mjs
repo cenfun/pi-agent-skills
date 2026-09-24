@@ -16,6 +16,9 @@ test('bundled plugin manifest and UI script are valid', async () => {
   assert.ok(script, 'plugin UI must contain an inline script');
   assert.match(html, /<title>Figma MCP to Web Plugin<\/title>/);
   assert.match(html, /id="port"[^>]*value="3081"/);
+  assert.match(html, /connects automatically and retries/);
+  assert.match(script[1], /function scheduleReconnect\(\)/);
+  assert.match(script[1], /\n\s*connect\(\);\s*$/);
   assert.doesNotThrow(() => new vm.Script(script[1]));
 });
 
@@ -65,6 +68,92 @@ async function loadPlugin(exportBytes = new Uint8Array()) {
   }, { filename: 'plugin/code.js' });
   return { exportSettings, figma, messages, uiOptions };
 }
+
+test('plugin UI auto-connects, retries, and allows retries to be paused', async () => {
+  const html = await readFile(new URL('../plugin/ui.html', import.meta.url), 'utf8');
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const listeners = new Map();
+  const elements = {
+    port: { value: '3081', disabled: false },
+    connect: {
+      textContent: '',
+      addEventListener(type, listener) {
+        listeners.set(type, listener);
+      },
+    },
+    status: { textContent: '', className: '' },
+  };
+  const timers = new Map();
+  let nextTimerId = 1;
+
+  class FakeWebSocket {
+    static OPEN = 1;
+    static instances = [];
+
+    constructor(url) {
+      this.url = url;
+      this.readyState = 0;
+      this.sent = [];
+      FakeWebSocket.instances.push(this);
+    }
+
+    send(message) {
+      this.sent.push(JSON.parse(message));
+    }
+
+    close() {
+      this.readyState = 3;
+      this.onclose?.();
+    }
+  }
+
+  vm.runInNewContext(script, {
+    WebSocket: FakeWebSocket,
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    document: { getElementById: id => elements[id] },
+    parent: { postMessage() {} },
+    setTimeout(callback) {
+      const id = nextTimerId;
+      nextTimerId += 1;
+      timers.set(id, callback);
+      return id;
+    },
+    window: {},
+  });
+
+  assert.equal(FakeWebSocket.instances.length, 1);
+  assert.equal(FakeWebSocket.instances[0].url, 'ws://localhost:3081');
+  assert.equal(elements.port.disabled, true);
+
+  FakeWebSocket.instances[0].onclose();
+  assert.equal(timers.size, 1);
+  assert.match(elements.status.textContent, /Retrying automatically/);
+
+  const retry = [...timers.values()][0];
+  timers.clear();
+  retry();
+  assert.equal(FakeWebSocket.instances.length, 2);
+
+  const reconnected = FakeWebSocket.instances[1];
+  reconnected.readyState = FakeWebSocket.OPEN;
+  reconnected.onopen();
+  const join = reconnected.sent[0];
+  assert.equal(join.type, 'join');
+  assert.match(join.channel, /^[a-z0-9]{8}$/);
+
+  reconnected.onmessage({
+    data: JSON.stringify({ type: 'system', channel: join.channel, message: `Joined channel: ${join.channel}` }),
+  });
+  assert.equal(elements.connect.textContent, 'Disconnect');
+  assert.match(elements.status.textContent, /Connected to server in channel/);
+
+  listeners.get('click')();
+  assert.equal(elements.connect.textContent, 'Connect');
+  assert.equal(elements.port.disabled, false);
+  assert.equal(timers.size, 0);
+});
 
 test('bundled plugin opens a taller UI without scrollbars', async () => {
   const { uiOptions } = await loadPlugin();

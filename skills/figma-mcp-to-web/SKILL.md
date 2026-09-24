@@ -63,9 +63,9 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs`, `lifecycle: "lazy"`, and `idleTimeout: 30`. Calling `bridge_status` starts the combined stdio MCP server and `ws://localhost:3081` relay when needed. After 30 minutes without an MCP tool call, the adapter stops the bridge and closes the plugin connection; use `idleTimeout: 0` instead to keep it alive until the Pi session ends. Ensure no other process is using port 3081.
+Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs`, `lifecycle: "lazy"`, and `idleTimeout: 30`. Calling `bridge_status` starts the combined stdio MCP server and `ws://localhost:3081` relay when needed. After 30 minutes without an MCP tool call, the adapter stops the bridge and closes the plugin connection; a still-open plugin reconnects automatically after a later tool call restarts the bridge. Use `idleTimeout: 0` instead to keep the bridge alive until the Pi session ends. Ensure no other process is using port 3081.
 
-A Skill cannot install or launch a Figma plugin inside Figma Desktop. Once, import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. For each session, run **Figma MCP to Web Plugin** and click **Connect** after the bridge is available. Do not run another plugin against the same bridge at the same time.
+A Skill cannot install or launch a Figma plugin inside Figma Desktop. For each session, the user must run **Figma MCP to Web Plugin**; it connects automatically and retries with a capped exponential backoff if the bridge is not yet available or later restarts. The UI's **Disconnect** action deliberately pauses retries and enables port editing; **Connect** resumes automatic connection. Do not run another plugin against the same bridge at the same time.
 
 ## Required workflow
 
@@ -82,7 +82,7 @@ Before querying detailed Figma data:
 
 1. Locate the bridge tools in the active MCP registry.
 2. Call `bridge_status` and inspect its `ready` field. When exactly one plugin is connected, the bridge selects its channel automatically.
-3. If `ready` is `false` and no channel is connected, stop and tell the user: **Open “Figma MCP to Web Plugin” under Plugins → Development in Figma Desktop, click “Connect”, and wait until the plugin shows “Connected to server in channel: …”.** Ask the user to confirm after that message appears, then call `bridge_status` again. Do not poll repeatedly or continue to Figma reads before the connection is confirmed.
+3. If `ready` is `false` and no channel is connected, stop and tell the user: **Open “Figma MCP to Web Plugin” under Plugins → Development in Figma Desktop and wait until its automatic connection shows “Connected to server in channel: …”.** If the plugin is already open, leave it running while it retries automatically; if it shows `Automatic connection paused`, click **Connect** once to resume retries. Ask the user to confirm after the connected message appears, then call `bridge_status` again. Do not poll repeatedly or continue to Figma reads before the connection is confirmed.
 4. If multiple channels are connected, call `list_channels`, ask the user which Figma file/plugin to use, then call `join_channel` with that exact channel. Never guess or persist a channel value in source control.
 5. Continue only when `bridge_status.ready` is `true` and `connectionMessage` reports `Connected to server in channel: <channel>`.
 6. Call `get_document_info` and confirm the returned current page matches the user's intended page. The bundled plugin does not return the Figma file name, so confirm file identity with the user when it is ambiguous.

@@ -269,7 +269,7 @@ export class FigmaPluginBridge {
       if (sockets.length > 1) throw new Error(`Channel ${this.activeChannel} has multiple plugin connections`);
     }
     if (channels.length === 0) {
-      throw new Error('No bundled Figma plugin is connected. Run "Figma MCP to Web Plugin" in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".');
+      throw new Error('No bundled Figma plugin is connected. Run "Figma MCP to Web Plugin" in Figma Desktop and wait for its automatic connection to show "Connected to server in channel: <channel>".');
     }
     if (channels.length > 1) throw new Error(`Multiple Figma channels are connected (${channels.join(', ')}); call join_channel first`);
     this.activeChannel = channels[0];
@@ -326,7 +326,7 @@ export class FigmaPluginBridge {
     } else if (channels.length > 1) {
       connectionMessage = `Multiple Figma channels are connected (${channels.join(', ')}). Select one with join_channel.`;
     } else {
-      connectionMessage = 'Run "Figma MCP to Web Plugin" in Figma Desktop, click "Connect", and wait for "Connected to server in channel: <channel>".';
+      connectionMessage = 'Run "Figma MCP to Web Plugin" in Figma Desktop and wait for its automatic connection to show "Connected to server in channel: <channel>".';
     }
     return {
       ready,

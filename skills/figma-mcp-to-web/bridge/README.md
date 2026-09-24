@@ -57,15 +57,15 @@ Configure `pi-mcp-adapter` with an absolute path:
 
 Use `~/.config/mcp/mcp.json` for a shared global MCP configuration, `.mcp.json` for a project configuration, or the Pi adapter's own override file. Run `/reload` after changing configuration.
 
-With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `figma-mcp-to-web-bridge` tool is first called, avoiding connection errors in sessions that do not use Figma. The example sets the adapter's per-server `idleTimeout` to 30 minutes; after 30 minutes without an MCP tool call, the adapter stops the stdio process, and the plugin's WebSocket connection closes with it. A later tool call restarts the bridge, after which the plugin must reconnect. Set `idleTimeout` to `0` instead to disable idle shutdown for the Pi session. Ensure no other process is listening on port 3081 when starting a Figma workflow.
+With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `figma-mcp-to-web-bridge` tool is first called, avoiding connection errors in sessions that do not use Figma. The example sets the adapter's per-server `idleTimeout` to 30 minutes; after 30 minutes without an MCP tool call, the adapter stops the stdio process, and the plugin's WebSocket connection closes with it. A later tool call restarts the bridge, and the open plugin reconnects automatically with exponential backoff. Set `idleTimeout` to `0` instead to disable idle shutdown for the Pi session. Ensure no other process is listening on port 3081 when starting a Figma workflow.
 
-Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Start the bridge by calling `bridge_status` (or another `figma-mcp-to-web-bridge` tool), then run **Figma MCP to Web Plugin** in Figma Desktop and click **Connect**. Do not consider setup complete until the plugin displays:
+Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Start the bridge by calling `bridge_status` (or another `figma-mcp-to-web-bridge` tool), then run **Figma MCP to Web Plugin** in Figma Desktop. The plugin connects automatically. Do not consider setup complete until it displays:
 
 ```text
 Connected to server in channel: <channel>
 ```
 
-The plugin automatically joins the generated channel after connecting. If it was opened before the bridge started, click **Connect** again. Pi should then call `bridge_status` and continue only when `ready` is `true` and `connectionMessage` confirms the active channel.
+The plugin automatically joins the generated channel after connecting. If it was opened before the bridge started, leave it running; it retries with exponential backoff capped at five seconds and reconnects after bridge restarts. **Disconnect** deliberately pauses retries and enables port editing; **Connect** resumes automatic connection. Pi should then call `bridge_status` and continue only when `ready` is `true` and `connectionMessage` confirms the active channel.
 
 ## Environment variables
 

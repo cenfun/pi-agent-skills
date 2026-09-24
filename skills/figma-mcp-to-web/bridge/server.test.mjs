@@ -152,7 +152,7 @@ test('exposes the expected read-oriented MCP tool catalog', async t => {
   const parsedStatus = JSON.parse(status.content[0].text);
   assert.equal(parsedStatus.websocket.listening, true);
   assert.equal(parsedStatus.ready, false);
-  assert.match(parsedStatus.connectionMessage, /click "Connect"/);
+  assert.match(parsedStatus.connectionMessage, /automatic connection/);
 });
 
 test('auto-selects one plugin channel and relays command results', async t => {

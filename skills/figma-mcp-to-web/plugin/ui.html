@@ -23,13 +23,22 @@
   <div class="row">
     <label for="port">Bridge port</label>
     <input id="port" type="number" min="1" max="65535" value="3081">
-    <button id="connect" type="button">Connect</button>
+    <button id="connect" type="button">Stop retrying</button>
   </div>
-  <div id="status">Not connected</div>
-  <div class="hint">Start the bundled bridge first, then connect this plugin. SVG exports are produced directly by the Figma Plugin API.</div>
+  <div id="status">Connecting to the local bridge…</div>
+  <div class="hint">This plugin connects automatically and retries when the bundled bridge starts or restarts. SVG exports are produced directly by the Figma Plugin API.</div>
 
   <script>
-    const state = { socket: null, channel: null, connected: false };
+    const INITIAL_RETRY_DELAY_MS = 500;
+    const MAX_RETRY_DELAY_MS = 5000;
+    const state = {
+      socket: null,
+      channel: makeChannel(),
+      connected: false,
+      retryTimer: null,
+      retryDelayMs: INITIAL_RETRY_DELAY_MS,
+      manuallyStopped: false,
+    };
     const portInput = document.getElementById('port');
     const connectButton = document.getElementById('connect');
     const status = document.getElementById('status');
@@ -47,7 +56,7 @@
     }
 
     function sendEnvelope(message) {
-      if (!state.socket || state.socket.readyState !== WebSocket.OPEN || !state.channel) return;
+      if (!state.socket || state.socket.readyState !== WebSocket.OPEN) return;
       state.socket.send(JSON.stringify({
         type: 'message',
         channel: state.channel,
@@ -55,29 +64,59 @@
       }));
     }
 
-    function disconnect() {
-      if (state.socket) state.socket.close();
-      state.socket = null;
-      state.channel = null;
+    function clearRetryTimer() {
+      if (state.retryTimer === null) return;
+      clearTimeout(state.retryTimer);
+      state.retryTimer = null;
+    }
+
+    function scheduleReconnect() {
+      if (state.manuallyStopped || state.socket || state.retryTimer !== null) return;
+      const delay = state.retryDelayMs;
+      setStatus(`Bridge unavailable. Retrying automatically in ${delay / 1000}s…`, 'error');
+      connectButton.textContent = 'Stop retrying';
+      state.retryTimer = setTimeout(() => {
+        state.retryTimer = null;
+        connect();
+      }, delay);
+      state.retryDelayMs = Math.min(delay * 2, MAX_RETRY_DELAY_MS);
+    }
+
+    function stopConnecting() {
+      state.manuallyStopped = true;
       state.connected = false;
+      clearRetryTimer();
+      const socket = state.socket;
+      state.socket = null;
+      if (socket) socket.close();
       portInput.disabled = false;
       connectButton.textContent = 'Connect';
-      setStatus('Not connected');
+      setStatus('Automatic connection paused');
     }
 
     function connect() {
-      const port = Number(portInput.value) || 3081;
-      setStatus('Connecting…');
+      if (state.socket || state.retryTimer !== null) return;
+      state.manuallyStopped = false;
+      state.connected = false;
       portInput.disabled = true;
+      connectButton.textContent = 'Stop retrying';
+      setStatus('Connecting to the local bridge…');
+
+      const requestedPort = Number(portInput.value);
+      const port = Number.isInteger(requestedPort) && requestedPort >= 1 && requestedPort <= 65535
+        ? requestedPort
+        : 3081;
       const socket = new WebSocket(`ws://localhost:${port}`);
       state.socket = socket;
 
       socket.onopen = () => {
-        state.channel = makeChannel();
+        if (state.socket !== socket) return;
+        state.retryDelayMs = INITIAL_RETRY_DELAY_MS;
         socket.send(JSON.stringify({ type: 'join', channel: state.channel }));
       };
 
       socket.onmessage = event => {
+        if (state.socket !== socket) return;
         let packet;
         try {
           packet = JSON.parse(event.data);
@@ -115,13 +154,24 @@
         }
       };
 
-      socket.onerror = () => setStatus('Unable to connect to the local bridge', 'error');
-      socket.onclose = () => disconnect();
+      socket.onerror = () => {
+        if (state.socket === socket) setStatus('Unable to connect to the local bridge', 'error');
+      };
+      socket.onclose = () => {
+        if (state.socket !== socket) return;
+        state.socket = null;
+        state.connected = false;
+        scheduleReconnect();
+      };
     }
 
     connectButton.addEventListener('click', () => {
-      if (state.connected || state.socket) disconnect();
-      else connect();
+      if (!state.manuallyStopped) {
+        stopConnecting();
+        return;
+      }
+      state.retryDelayMs = INITIAL_RETRY_DELAY_MS;
+      connect();
     });
 
     window.onmessage = event => {
@@ -146,6 +196,8 @@
         }));
       }
     };
+
+    connect();
   </script>
 </body>
 </html>

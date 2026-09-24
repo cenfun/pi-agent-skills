@@ -9,7 +9,7 @@
 | Skill | 说明 | 依赖 |
 | --- | --- | --- |
 | [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | 将结构化数据、查询结果、日志和报告导出为 `.temp/` 下带日期的 `.xlsx` 工作簿。包含支持显式列、自动列宽和多工作表的通用导出脚本。 | Node.js、`xlsx` |
-| [`figma-mcp-to-web`](skills/figma-mcp-to-web/SKILL.md) | 通过随 Skill 提供的本地 Node.js MCP/WebSocket 桥接和 Talk to Figma 插件，将 Figma Desktop 当前打开文档中的选中设计实现为高保真、响应式、可交互的 Web UI。使用渐进式节点、样式、组件、资源和截图检查，并执行视觉与行为验证。 | Node.js、Figma Desktop、**Talk to Figma MCP Plugin**、已配置的 Pi MCP Adapter |
+| [`figma-mcp-to-web`](skills/figma-mcp-to-web/SKILL.md) | 通过随 Skill 提供的只读 Figma 开发插件和本地 Node.js MCP/WebSocket Bridge，将 Figma Desktop 当前打开文档中的选中设计实现为高保真、响应式、可交互的 Web UI。使用渐进式节点、样式、组件、资源和截图检查，并执行视觉与行为验证。 | Node.js、Figma Desktop、随附的 **Figma MCP to Web Plugin**、已配置的 Pi MCP Adapter |
 | [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | 当任务需要临时脚本进行自动化、数据处理、代码生成、仓库维护或调试时，默认优先使用 Node.js 和内置模块，而不是 Python。 | Node.js |
 
 ## 安装本仓库的 Skills
@@ -31,7 +31,7 @@ cp -R pi-agent-skills/skills/* ~/.pi/agent/skills/
 
 全局安装的 Skills 可在所有项目中使用，pi 会在下次启动时自动发现它们。
 
-`figma-mcp-to-web` 还包含本地 MCP/WebSocket Bridge。复制 Skill 后，需要按照 [`skills/figma-mcp-to-web/bridge/README.md`](skills/figma-mcp-to-web/bridge/README.md) 完成一次依赖安装和 `pi-mcp-adapter` 配置。使用文档中的 `keep-alive` 配置后，Pi 会自动启动 Bridge；Figma Community 插件仍需用户在 Figma Desktop 内打开。
+`figma-mcp-to-web` 还包含只读 Figma 开发插件和本地 MCP/WebSocket Bridge。复制 Skill 后，需要先导入一次随附的 Plugin Manifest，再按照 [`skills/figma-mcp-to-web/bridge/README.md`](skills/figma-mcp-to-web/bridge/README.md) 完成 Bridge 依赖安装和 `pi-mcp-adapter` 配置。在文档推荐的 lazy 生命周期下，首次调用 Bridge 工具时会启动 Bridge。每个会话仍需用户在 Figma Desktop 内运行插件，之后插件会自动连接并在断开后自动重连。
 
 ### 项目安装
 
@@ -53,7 +53,7 @@ pi 会根据 Skill 的 `description` 判断是否需要加载它。你可以直�
 ```
 
 ```text
-请通过已连接的 Talk to Figma channel，在当前 Vue 项目中实现 Figma 里选中的“资产全览”页面。
+请通过随附的 Figma MCP to Web Plugin，在当前 Vue 项目中实现 Figma 里选中的“资产全览”页面。
 ```
 
 ```text
