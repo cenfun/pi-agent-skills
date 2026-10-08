@@ -90,7 +90,7 @@ async function connectPlugin(bridge, channel) {
   return socket;
 }
 
-test('returns exact SVG source alongside the SVG attachment', async t => {
+test('returns exact SVG source as text without an unsupported image block', async t => {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>';
   const bridge = {
     async sendCommand() {
@@ -110,10 +110,47 @@ test('returns exact SVG source alongside the SVG attachment', async t => {
     name: 'export_node_as_image',
     arguments: { nodeId: '1:2', format: 'SVG', scale: 1 },
   });
-  assert.equal(result.content[0].mimeType, 'image/svg+xml');
-  assert.equal(result.content[1].type, 'text');
-  assert.match(result.content[1].text, new RegExp(svg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.equal(result.content.some(item => item.type === 'text' && item.text.startsWith('Warning:')), false);
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(result.content, [
+    { type: 'text', text: 'Exact SVG source for node 1:2 (image/svg+xml) follows:' },
+    { type: 'text', text: svg },
+  ]);
+});
+
+test('retains the embedded-raster warning alongside exact SVG source', async t => {
+  const svg = '<svg><image href="data:image/png;base64,AA=="/></svg>';
+  const server = createMcpServer({ async sendCommand() { return { imageData: base64(svg), mimeType: 'image/svg+xml' }; } });
+  const client = new Client({ name: 'raster-svg-test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  t.after(async () => { await client.close(); await server.close(); });
+  const result = await client.callTool({ name: 'export_node_as_image', arguments: { nodeId: '1:2', format: 'SVG' } });
+  assert.equal(result.content[1].text, svg);
+  assert.match(result.content[2].text, /embedded raster image/);
+});
+
+test('keeps SVG source larger than the former 512 KiB limit', async t => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg"><desc>${'ä'.repeat(270_000)}</desc></svg>`;
+  const server = createMcpServer({ async sendCommand() { return { imageData: base64(svg), mimeType: 'image/svg+xml' }; } });
+  const client = new Client({ name: 'large-svg-test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  t.after(async () => { await client.close(); await server.close(); });
+  const result = await client.callTool({ name: 'export_node_as_image', arguments: { nodeId: '1:2', format: 'SVG' } });
+  assert.equal(result.content[1].text, svg);
+});
+
+test('returns PDF as a binary resource instead of an unsupported image block', async t => {
+  const pdf = Buffer.from('%PDF-1.4\n');
+  const server = createMcpServer({ async sendCommand() { return { imageData: pdf.toString('base64'), mimeType: 'application/pdf' }; } });
+  const client = new Client({ name: 'pdf-test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  t.after(async () => { await client.close(); await server.close(); });
+  const result = await client.callTool({ name: 'export_node_as_image', arguments: { nodeId: '1:2', format: 'PDF' } });
+  assert.deepEqual(result.content, [{ type: 'resource', resource: {
+    uri: 'figma-export://node/1%3A2.pdf', mimeType: 'application/pdf', blob: pdf.toString('base64'),
+  } }]);
 });
 
 test('exposes the expected read-oriented MCP tool catalog', async t => {

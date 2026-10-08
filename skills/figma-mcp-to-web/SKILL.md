@@ -28,7 +28,7 @@ This workflow accepts only live Figma data through the bundled read-only develop
 
 ## Required MCP capabilities
 
-Use Pi's built-in MCP registry. By default MCP tools have `codemode` exposure: discover the actual registered server/tool names with `searchTools("Figma bridge_status")` inside `codemode`, inspect signatures with `describeTool()`, then call the discovered tool through `tools.<name>({...})`. Do not hard-code a server prefix: the example in [bridge/README.md](bridge/README.md) registers `figma-mcp-to-web-bridge` (callable tool `mcp__figma_mcp_to_web_bridge__bridge_status`), but an existing installation might register the same server as `talk-to-figma` (callable tool `mcp__talk_to_figma__bridge_status`). Use the **same** discovered namespace for subsequent calls; if more than one bridge is registered, check its configuration before choosing. If configured as `deferred`, load tools via `tool_search`; `direct` tools can be called directly. Do not assume direct tool declarations are visible. The workflow requires these local bridge tools:
+Use Pi's built-in MCP registry. By default MCP tools have `codemode` exposure: discover the actual registered server/tool names with `searchTools("Figma bridge_status")` inside `codemode`, inspect signatures with `describeTool()`, then call the discovered tool through `tools.<name>({...})`. The example in [bridge/README.md](bridge/README.md) registers `figma-mcp-to-web-bridge` (callable tool `mcp__figma_mcp_to_web_bridge__bridge_status`). Do not assume a prefix for differently named installations; use the **same** discovered namespace for subsequent calls. If more than one bridge is registered, check its configuration before choosing. If configured as `deferred`, load tools via `tool_search`; `direct` tools can be called directly. Do not assume direct tool declarations are visible. The workflow requires these local bridge tools:
 
 - `bridge_status`
 - `list_channels`
@@ -50,7 +50,7 @@ Use these only when needed:
 
 Read [references/figma-mcp-to-web.md](references/figma-mcp-to-web.md) before using these tools. Read [references/fidelity-and-interactions.md](references/fidelity-and-interactions.md) before implementation and visual QA.
 
-If the required MCP tools are unavailable, check `/mcp` (or `pi mcp list` when Pi is not already running the bridge) for connection/configuration errors, exposure, and whether a legacy adapter extension is replacing built-in MCP. Report the issue and stop; do not fall back to a snapshot file.
+If the required MCP tools are unavailable, check `/mcp`: the recommended global configuration starts **disabled**. Ask the user to enable the bridge there for this Figma workflow, then re-discover its tools; an agent cannot call tools of a disabled server. For actual connection/configuration errors, check exposure and whether an old adapter overrides built-in MCP, then report the issue and stop. Do not fall back to a snapshot file.
 
 ## Bundled plugin and bridge setup
 
@@ -63,7 +63,7 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure Pi's built-in MCP once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` in `~/.pi/agent/mcp.json` or a trusted project's `.pi/mcp.json`. Remove/disable any `pi-mcp-adapter` extension that registers `/mcp`, since it replaces built-in MCP. Run `/reload` after changes; use `/mcp` to verify the connection. Pi starts enabled servers in the background when a session starts, not on the first tool call. `bridge_status` verifies that the combined stdio MCP server and `ws://localhost:3081` relay are reachable. No adapter-style lazy startup or idle timeout applies. Ensure no other process is using port 3081.
+Configure Pi's built-in MCP once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` in `~/.pi/agent/mcp.json` or a trusted project's `.pi/mcp.json`. Remove/disable any `pi-mcp-adapter` extension that registers `/mcp`, since it replaces built-in MCP. Run `/reload` after changes. For global installs, keep the bridge `enabled: false` until a Figma workflow: ask the user to enable it in `/mcp`, then use `/mcp` to verify the connection; disable it there after the workflow. Pi starts **enabled** servers at session startup, not on the first tool call. `bridge_status` verifies that the combined stdio MCP server and `ws://localhost:3081` relay are reachable. `codemode` exposure is not lazy process startup; there is no adapter-style idle timeout. Ensure no other process is using port 3081.
 
 The installed **Figma MCP to Web Plugin** connects automatically and retries with a capped exponential backoff if the bridge is not yet available or later restarts. The agent must not ask the user to wait for or confirm this automatic connection. After verifying the bridge with `bridge_status`, wait briefly and retry status checks until the plugin is connected, then continue immediately. The UI's **Disconnect** action deliberately pauses retries and enables port editing; **Connect** resumes automatic connection. Do not run another plugin against the same bridge at the same time.
 
@@ -80,7 +80,7 @@ Before querying detailed Figma data:
 
 ### 2. Connect and verify the live Figma session
 
-1. Locate the bridge tools using the configured native MCP exposure (`codemode` by default). For codemode calls, check `result.isError` and inspect `result.content`/`result.structuredContent`; forward image blocks with `image(block)` when a visual reference is needed.
+1. Locate the bridge tools using the configured native MCP exposure (`codemode` by default). If disabled, ask the user to enable the server in `/mcp` first. For codemode calls, check `result.isError` and inspect `result.content`/`result.structuredContent`; forward only PNG/JPEG image blocks with `image(block)` when a visual reference is needed. SVG is returned as text, never as an image block.
 2. Call `bridge_status` and inspect its `ready` field. When exactly one plugin is connected, the bridge selects its channel automatically.
 3. If `ready` is `false` and no channel is connected, let the plugin's automatic connection proceed: delay for 1 second, call `bridge_status` again, then use delays of 2, 3, and at most 5 seconds between subsequent checks. Keep retrying with the 5-second cap until a channel connects. Do not busy-poll, ask the user to wait, or ask for connection confirmation. As soon as status becomes ready, continue automatically to the next step.
 4. If multiple channels are connected, call `list_channels`, ask the user which Figma file/plugin to use, then call `join_channel` with that exact channel. Never guess or persist a channel value in source control.
@@ -172,7 +172,7 @@ Apply this format policy in order:
 3. **Raster content:** request `PNG` for photographs, bitmap/image-fill nodes, textured artwork, large raster backgrounds, and full-screen comparison references.
 4. **Unknown content:** inspect node type and visual evidence before choosing. Size alone is not sufficient: a large vector illustration may still belong in SVG, while a tiny photo remains PNG.
 
-Always verify the returned MIME type and, when exposed, the export warning. The bundled plugin exports SVG directly through `node.exportAsync({ format: "SVG" })`, and the bridge independently sniffs the returned payload. For SVGs up to 512 KiB, use the exact SVG source returned alongside the image attachment; do not redraw it. If an SVG request unexpectedly returns `image/png`:
+Always verify the returned MIME type and, when exposed, the export warning. The bundled plugin exports SVG directly through `node.exportAsync({ format: "SVG" })`, and the bridge independently sniffs the returned payload. A successful SVG export returns a MIME/node text label in `result.content[0]` and the **exact SVG source** in `result.content[1].text`, with no SVG image attachment or 512 KiB limit. In `codemode`, save that second text block directly using `tools.write({ path: "<project>/path/to/icon.svg", content: result.content[1].text })`; do not print large SVGs into model output or redraw them. Pi may truncate displayed text but codemode receives the full result. Check `isError`, the label, and warnings before saving. If an SVG request unexpectedly returns `image/png`:
 
 - keep that PNG only as a visual reference;
 - do not save, rename, embed, or ship it as the icon implementation;
@@ -195,7 +195,7 @@ Also test one narrower and one wider viewport unless the target is intentionally
 
 ### 10. Completion contract
 
-Run all project validation commands. Report:
+Run all project validation commands. When finished, remind the user to disable a globally enabled Figma bridge in `/mcp` if no longer needed. Report:
 
 - the user-confirmed Figma document when known, returned page, selected node ID, and viewport used;
 - MCP calls made and whether any had side effects;

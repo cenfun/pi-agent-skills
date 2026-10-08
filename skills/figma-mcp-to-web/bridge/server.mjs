@@ -13,7 +13,6 @@ const DEFAULT_HOST = 'localhost';
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024 * 1024;
 const MAX_CHANNEL_LENGTH = 128;
-const MAX_INLINE_SVG_BYTES = 512 * 1024;
 
 function asPositiveInteger(value, fallback, name) {
   if (value === undefined || value === '') return fallback;
@@ -438,21 +437,16 @@ export function createMcpServer(bridge) {
         if (mimeType === 'application/octet-stream') {
           throw new Error(`Unable to determine the exported MIME type for node ${nodeId}`);
         }
-        const content = [{ type: 'image', data: result.imageData, mimeType }];
-        if (requestedFormat === 'SVG' && mimeType === 'image/svg+xml') {
-          const svgSource = decodeSvgExport(result.imageData);
-          if (Buffer.byteLength(svgSource, 'utf8') <= MAX_INLINE_SVG_BYTES) {
-            content.push({
-              type: 'text',
-              text: `Exact SVG source for node ${nodeId}:\n${svgSource}`,
-            });
-          } else {
-            content.push({
-              type: 'text',
-              text: `Warning: SVG source for node ${nodeId} exceeds ${MAX_INLINE_SVG_BYTES} bytes and was not inlined. Select a smaller asset node.`,
-            });
-          }
-        }
+        // Pi's model/codemode image pipeline does not accept SVG or PDF image blocks.
+        // Return SVG as exact UTF-8 text (even for large exports) so callers can save it unchanged.
+        const content = mimeType === 'image/svg+xml'
+          ? [
+              { type: 'text', text: `Exact SVG source for node ${nodeId} (image/svg+xml) follows:` },
+              { type: 'text', text: decodeSvgExport(result.imageData) },
+            ]
+          : mimeType === 'application/pdf'
+            ? [{ type: 'resource', resource: { uri: `figma-export://node/${encodeURIComponent(nodeId)}.pdf`, mimeType, blob: result.imageData } }]
+            : [{ type: 'image', data: result.imageData, mimeType }];
         if (requestedFormat === 'SVG' && mimeType !== 'image/svg+xml') {
           content.push({
             type: 'text',
