@@ -22,7 +22,7 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure `pi-mcp-adapter` with an absolute path:
+Configure Pi's **built-in MCP** in `~/.pi/agent/mcp.json` (user-level) or `.pi/mcp.json` (trusted project). Use the absolute path to the **installed** skill directory; in JSON, escape Windows backslashes or use forward slashes:
 
 ```json
 {
@@ -30,36 +30,19 @@ Configure `pi-mcp-adapter` with an absolute path:
     "figma-mcp-to-web-bridge": {
       "command": "node",
       "args": ["<absolute-skill-dir>/bridge/server.mjs"],
-      "lifecycle": "lazy",
-      "idleTimeout": 30,
-      "requestTimeoutMs": 120000,
-      "includeTools": [
-        "bridge_status",
-        "list_channels",
-        "join_channel",
-        "get_document_info",
-        "get_selection",
-        "read_my_design",
-        "get_node_info",
-        "get_nodes_info",
-        "scan_nodes_by_types",
-        "scan_text_nodes",
-        "get_styles",
-        "get_local_components",
-        "get_annotations",
-        "get_reactions",
-        "export_node_as_image"
-      ]
+      "timeout": 300,
+      "exposure": "codemode",
+      "description": "Read the open Figma Desktop document through the bundled local read-only bridge"
     }
   }
 }
 ```
 
-Use `~/.config/mcp/mcp.json` for a shared global MCP configuration, `.mcp.json` for a project configuration, or the Pi adapter's own override file. Run `/reload` after changing configuration.
+Pi's `timeout` is a per-request limit in **seconds** (default 60). Set it above the bridge's own 120-second inactivity limit for long reads; Figma plugin progress refreshes the bridge's WebSocket command timeout, but is not forwarded as MCP progress notifications, so Pi's request limit can still expire first. No adapter-only `lifecycle`, `idleTimeout`, `requestTimeoutMs`, or `includeTools` fields are supported by Pi's built-in MCP. If you previously installed `pi-mcp-adapter`, remove/disable that extension first: an extension that registers `/mcp` replaces Pi's built-in MCP support and prevents Pi from reading `mcp.json` in a session. Then run `/reload` (or restart Pi) and check `/mcp` in Pi to confirm the server connects and exposes its tools. You can run `pi mcp list` from a shell **before** launching the Pi session; do not start a second bridge instance on port 3081 while Pi already has one running. Pi starts enabled stdio MCP servers in the background at session startup; the first `bridge_status` call **checks** the running bridge rather than starting it. The bridge runs while its MCP connection is open; there is no built-in idle shutdown. Ensure no other process uses port 3081. For occasional use, disable the server via `/mcp` when not needed and re-enable it before a Figma session.
 
-With `lifecycle: "lazy"`, Pi does not start or connect to the combined MCP/WebSocket process at session startup. The process starts only when a `figma-mcp-to-web-bridge` tool is first called, avoiding connection errors in sessions that do not use Figma. The example sets the adapter's per-server `idleTimeout` to 30 minutes; after 30 minutes without an MCP tool call, the adapter stops the stdio process, and the plugin's WebSocket connection closes with it. A later tool call restarts the bridge, and the open plugin reconnects automatically with exponential backoff. Set `idleTimeout` to `0` instead to disable idle shutdown for the Pi session. Ensure no other process is listening on port 3081 when starting a Figma workflow.
+With `exposure: "codemode"`, discover tools using `searchTools("Figma bridge_status")` in Pi's built-in `codemode`, then inspect the returned name with `describeTool()`. For the server name in the example above, call `tools.mcp__figma_mcp_to_web_bridge__bridge_status({})`; if you registered the bridge under a different name (such as `talk-to-figma`), use its actual normalized prefix (such as `tools.mcp__talk_to_figma__bridge_status({})`). Tool calls return MCP `CallToolResult` (check `isError`; forward image blocks with `image(block)`). Alternatively set `exposure: "deferred"` and load tools via `tool_search`, or `"direct"` to expose all bridge tools immediately. Verify the effective exposure in `/mcp`.
 
-Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Start the bridge by calling `bridge_status` (or another `figma-mcp-to-web-bridge` tool), then run **Figma MCP to Web Plugin** in Figma Desktop. The plugin connects automatically. Do not consider setup complete until it displays:
+Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Run **Figma MCP to Web Plugin** in Figma Desktop after Pi connects the bridge (or before; it will retry). The plugin connects automatically. Do not consider setup complete until it displays:
 
 ```text
 Connected to server in channel: <channel>
@@ -73,7 +56,7 @@ The plugin automatically joins the generated channel after connecting. If it was
 |---|---:|---|
 | `FIGMA_BRIDGE_HOST` | `localhost` | WebSocket bind host; keep this loopback-only |
 | `FIGMA_BRIDGE_PORT` | `3081` | WebSocket port expected by the plugin |
-| `FIGMA_BRIDGE_TIMEOUT_MS` | `120000` | Per-command inactivity timeout; progress updates reset it. This does not control bridge process idle shutdown. |
+| `FIGMA_BRIDGE_TIMEOUT_MS` | `120000` | Per-command inactivity timeout; progress updates reset it. Pi's MCP `timeout` is separate; plugin progress does not reset Pi's timer. |
 | `FIGMA_BRIDGE_MAX_PAYLOAD_BYTES` | `67108864` | Maximum incoming WebSocket message size |
 
 ## Validation

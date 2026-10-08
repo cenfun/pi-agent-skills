@@ -9,10 +9,10 @@ This bundled development plugin implements only the read commands used by this s
 
 ## Use in each session
 
-1. Call `bridge_status` from Pi to start the skill's lazy bundled bridge.
+1. Enable the bridge in Pi's built-in MCP configuration (see [bridge setup](../bridge/README.md)). Pi starts enabled servers in the background at session startup; check `/mcp` for connection errors.
 2. Run **Figma MCP to Web Plugin** from **Plugins → Development**.
-3. Wait for the automatic connection to show `Connected to server in channel: …`.
-4. Confirm that Pi's next `bridge_status` result has `ready: true` before using read tools.
+3. The plugin connects automatically and displays `Connected to server in channel: …`.
+4. Call `bridge_status` from Pi to confirm `ready: true` before using read tools.
 
 The plugin may also be opened before the bridge starts. It retries automatically with exponential backoff, capped at five seconds, and reconnects after bridge restarts. **Disconnect** pauses automatic retries so the port can be changed; **Connect** resumes them.
 

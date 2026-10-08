@@ -1,7 +1,7 @@
 ---
 name: figma-mcp-to-web
 description: Implements high-fidelity, responsive, interactive web UI from the currently open Figma Desktop document through the bundled read-only Figma plugin and local MCP bridge. Use for Figma-to-HTML/CSS, React, Vue, Svelte, or another existing web stack without the Figma REST API or snapshot JSON exports.
-compatibility: Requires Node.js, Figma Desktop, this skill's bundled local Figma development plugin, and its local MCP/WebSocket bridge configured in Pi.
+compatibility: Requires Node.js, Figma Desktop, this skill's bundled local Figma development plugin, and its local MCP/WebSocket bridge configured with Pi's built-in MCP.
 ---
 
 # Figma MCP to Web UI
@@ -28,7 +28,7 @@ This workflow accepts only live Figma data through the bundled read-only develop
 
 ## Required MCP capabilities
 
-Discover the active tool names because the client may prefix them with the MCP server name. The workflow requires these local bridge tools:
+Use Pi's built-in MCP registry. By default MCP tools have `codemode` exposure: discover the actual registered server/tool names with `searchTools("Figma bridge_status")` inside `codemode`, inspect signatures with `describeTool()`, then call the discovered tool through `tools.<name>({...})`. Do not hard-code a server prefix: the example in [bridge/README.md](bridge/README.md) registers `figma-mcp-to-web-bridge` (callable tool `mcp__figma_mcp_to_web_bridge__bridge_status`), but an existing installation might register the same server as `talk-to-figma` (callable tool `mcp__talk_to_figma__bridge_status`). Use the **same** discovered namespace for subsequent calls; if more than one bridge is registered, check its configuration before choosing. If configured as `deferred`, load tools via `tool_search`; `direct` tools can be called directly. Do not assume direct tool declarations are visible. The workflow requires these local bridge tools:
 
 - `bridge_status`
 - `list_channels`
@@ -50,7 +50,7 @@ Use these only when needed:
 
 Read [references/figma-mcp-to-web.md](references/figma-mcp-to-web.md) before using these tools. Read [references/fidelity-and-interactions.md](references/fidelity-and-interactions.md) before implementation and visual QA.
 
-If the required MCP tools are unavailable, stop and report that the bundled bridge must be installed, configured in Pi, and reloaded. Do not fall back to a snapshot file.
+If the required MCP tools are unavailable, check `/mcp` (or `pi mcp list` when Pi is not already running the bridge) for connection/configuration errors, exposure, and whether a legacy adapter extension is replacing built-in MCP. Report the issue and stop; do not fall back to a snapshot file.
 
 ## Bundled plugin and bridge setup
 
@@ -63,9 +63,9 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure `pi-mcp-adapter` once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs`, `lifecycle: "lazy"`, and `idleTimeout: 30`. Calling `bridge_status` starts the combined stdio MCP server and `ws://localhost:3081` relay when needed. After 30 minutes without an MCP tool call, the adapter stops the bridge and closes the plugin connection; a still-open plugin reconnects automatically after a later tool call restarts the bridge. Use `idleTimeout: 0` instead to keep the bridge alive until the Pi session ends. Ensure no other process is using port 3081.
+Configure Pi's built-in MCP once as shown in [bridge/README.md](bridge/README.md), using an absolute path to `<skill-dir>/bridge/server.mjs` in `~/.pi/agent/mcp.json` or a trusted project's `.pi/mcp.json`. Remove/disable any `pi-mcp-adapter` extension that registers `/mcp`, since it replaces built-in MCP. Run `/reload` after changes; use `/mcp` to verify the connection. Pi starts enabled servers in the background when a session starts, not on the first tool call. `bridge_status` verifies that the combined stdio MCP server and `ws://localhost:3081` relay are reachable. No adapter-style lazy startup or idle timeout applies. Ensure no other process is using port 3081.
 
-The installed **Figma MCP to Web Plugin** connects automatically and retries with a capped exponential backoff if the bridge is not yet available or later restarts. The agent must not ask the user to wait for or confirm this automatic connection. After starting the bridge with `bridge_status`, wait briefly and retry status checks until the plugin is connected, then continue immediately. The UI's **Disconnect** action deliberately pauses retries and enables port editing; **Connect** resumes automatic connection. Do not run another plugin against the same bridge at the same time.
+The installed **Figma MCP to Web Plugin** connects automatically and retries with a capped exponential backoff if the bridge is not yet available or later restarts. The agent must not ask the user to wait for or confirm this automatic connection. After verifying the bridge with `bridge_status`, wait briefly and retry status checks until the plugin is connected, then continue immediately. The UI's **Disconnect** action deliberately pauses retries and enables port editing; **Connect** resumes automatic connection. Do not run another plugin against the same bridge at the same time.
 
 ## Required workflow
 
@@ -80,7 +80,7 @@ Before querying detailed Figma data:
 
 ### 2. Connect and verify the live Figma session
 
-1. Locate the bridge tools in the active MCP registry.
+1. Locate the bridge tools using the configured native MCP exposure (`codemode` by default). For codemode calls, check `result.isError` and inspect `result.content`/`result.structuredContent`; forward image blocks with `image(block)` when a visual reference is needed.
 2. Call `bridge_status` and inspect its `ready` field. When exactly one plugin is connected, the bridge selects its channel automatically.
 3. If `ready` is `false` and no channel is connected, let the plugin's automatic connection proceed: delay for 1 second, call `bridge_status` again, then use delays of 2, 3, and at most 5 seconds between subsequent checks. Keep retrying with the 5-second cap until a channel connects. Do not busy-poll, ask the user to wait, or ask for connection confirmation. As soon as status becomes ready, continue automatically to the next step.
 4. If multiple channels are connected, call `list_channels`, ask the user which Figma file/plugin to use, then call `join_channel` with that exact channel. Never guess or persist a channel value in source control.

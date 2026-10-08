@@ -1,16 +1,18 @@
 # figma-mcp-to-web reference
 
-This reference targets the skill's bundled **Figma MCP to Web Plugin** development plugin used with `bridge/server.mjs`. The Node.js process combines the local WebSocket relay and read-oriented MCP server. Tool names may be namespaced by the host client; discover the installed tools instead of assuming a prefix.
+This reference targets the skill's bundled **Figma MCP to Web Plugin** development plugin used with `bridge/server.mjs`. The Node.js process combines the local WebSocket relay and read-oriented MCP server. Configure the bridge in Pi's built-in MCP (see [bridge/README.md](../bridge/README.md)). Pi derives the callable tool prefix from the configured server name; discover tools and inspect their signatures rather than assuming a fixed prefix or direct tool exposure.
 
 ## Connection model
 
 ```text
-AI client -> bundled Node.js bridge (MCP stdio + localhost WebSocket) -> Figma plugin UI -> Figma Plugin API
+Pi built-in MCP -> bundled Node.js bridge (MCP stdio + localhost WebSocket) -> Figma plugin UI -> Figma Plugin API
 ```
 
-The bundled bridge is one process. After it starts, the installed **Figma MCP to Web Plugin** connects automatically and retries if the bridge is unavailable or restarts. The agent must not prompt the user to wait for or confirm this connection. If `bridge_status.ready` is `false`, delay and check again with a short backoff (1, 2, 3, then at most 5 seconds), continuing at the 5-second cap until ready. Continue automatically once `connectionMessage` is `Connected to server in channel: <channel>` and `bridge_status.ready` is `true`. This confirms both the plugin's WebSocket connection and the current AI client's MCP access before `get_document_info` and `get_selection` are called.
+The bundled bridge is one process. Pi connects enabled MCP servers at session startup; after the bridge starts, the installed **Figma MCP to Web Plugin** connects automatically and retries if the bridge is unavailable or restarts. The agent must not prompt the user to wait for or confirm this connection. If `bridge_status.ready` is `false`, delay and check again with a short backoff (1, 2, 3, then at most 5 seconds), continuing at the 5-second cap until ready. Continue automatically once `connectionMessage` is `Connected to server in channel: <channel>` and `bridge_status.ready` is `true`. This confirms both the plugin's WebSocket connection and the current AI client's MCP access before `get_document_info` and `get_selection` are called.
 
 The bridge automatically selects a channel when exactly one plugin is connected. With multiple plugins, use `list_channels` and `join_channel` to select one. A channel is session routing data; do not guess it, log it unnecessarily, or commit it to the repository.
+
+With the recommended `codemode` exposure, use `searchTools("Figma bridge_status")` to find the actual tool name; use `describeTool()` to inspect arguments and `describeNamespace()` for the discovered server. If configured as `figma-mcp-to-web-bridge`, call `tools.mcp__figma_mcp_to_web_bridge__bridge_status({})` in `codemode`; if configured as `talk-to-figma`, call `tools.mcp__talk_to_figma__bridge_status({})` instead. Check the returned `CallToolResult.isError`, read text/structured content, and use `image(block)` for returned image blocks. `deferred` exposure also supports `tool_search`; `direct` exposure declares the tools immediately. `bridge_status` checks an already running bridge; it does not trigger adapter-style lazy startup.
 
 ## Read tools
 
@@ -97,7 +99,7 @@ The bundled plugin's `get_reactions` recursively searches only the requested sub
 
 ## Failure handling
 
-- **Tools missing:** the bundled bridge is not installed/configured in the current AI client. Stop; do not use snapshot fallback.
+- **Tools missing:** check Pi's `/mcp` connection state, tool exposure, and whether an old adapter extension overrides built-in MCP; reload after fixing `mcp.json`. Stop; do not use snapshot fallback.
 - **No plugin connected yet:** do not prompt the user or request confirmation. Delay for 1 second and call `bridge_status` again, then retry after 2, 3, and at most 5 seconds; keep the 5-second interval until `ready` is `true`, then continue automatically. Do not busy-poll. Missing tools, bridge startup failure, port conflicts, or an explicit `Automatic connection paused` state are setup errors and should be reported rather than retried as a transient connection.
 - **Multiple channels:** list them, ask the user which file/plugin to target, and call `join_channel`.
 - **Wrong document/page:** ask the user to activate the intended Figma file/page.
