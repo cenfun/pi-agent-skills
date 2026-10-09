@@ -6,8 +6,8 @@
   "description": "Local read-oriented MCP and WebSocket bridge for Figma MCP to Web Plugin",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check ../plugin/code.js",
-    "test": "node --test server.test.mjs plugin.test.mjs"
+    "check": "node --check server.mjs && node --check setup.mjs && node --check ../extension/figma-on-demand.mjs && node --check ../plugin/code.js",
+    "test": "node --test server.test.mjs plugin.test.mjs setup.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

@@ -22,32 +22,15 @@ cd <skill-dir>/bridge
 npm ci --ignore-scripts
 ```
 
-Configure Pi's **built-in MCP** in `~/.pi/agent/mcp.json` (user-level) or `.pi/mcp.json` (trusted project). Use the absolute path to the **installed** skill directory; in JSON, escape Windows backslashes or use forward slashes:
+Run `node setup.mjs` **after `npm ci`** in the installed skill's `bridge/` directory. It installs a tiny shim in `~/.pi/agent/extensions/` pointing to the installed skill's extension. It also **disables** any previously configured always-on `figma-mcp-to-web-bridge` in `~/.pi/agent/mcp.json`, preserving other MCP entries. Reload Pi once. Do not remove the installed skill directory while the shim is in use; rerun setup after relocating the skill.
 
-```json
-{
-  "mcpServers": {
-    "figma-mcp-to-web-bridge": {
-      "command": "node",
-      "args": ["<absolute-skill-dir>/bridge/server.mjs"],
-      "timeout": 300,
-      "enabled": false,
-      "exposure": "codemode",
-      "description": "Read the open Figma Desktop document through the bundled local read-only bridge"
-    }
-  }
-}
-```
+Pi 1.1.0 cannot lazily start a file-configured MCP server with `enabled: false`. This bundled extension instead exposes `start_figma_bridge`, which calls Pi's **built-in** `pi.registerMcpServer()` on demand with a distinct runtime name (`figma-mcp-to-web-lazy`). Only this small starter tool loads at session startup. Calling it launches the stdio MCP server and localhost WebSocket relay; idle periods of 10 minutes and session shutdown call `pi.unregisterMcpServer()` to release port 3081. This is not `pi-mcp-adapter` and does not replace native MCP. A file-configured entry of the **same name as the runtime server** would override extension registration: do not create one. Don't enable the legacy entry at the same time, or the two bridges will compete for port 3081. Other Pi sessions accessing Figma concurrently can also conflict on that port.
 
-Pi's `timeout` is a per-request limit in **seconds** (default 60); the example uses 300 seconds, above the bridge's 120-second inactivity limit. Plugin progress refreshes the bridge's WebSocket timeout but is **not** forwarded as MCP progress, so Pi's total request timer can still expire on an exceptionally long operation. Set a higher Pi timeout if needed; reduce overly broad Figma reads first.
+The extension sets a native MCP per-request `timeout` of 300 **seconds**, above the bridge's 120-second inactivity limit. Plugin progress resets the WebSocket timer but not Pi's total request timer; reduce overly broad Figma reads first. Remove/disable `pi-mcp-adapter` if installed because it replaces Pi's built-in MCP.
 
-Pi 1.1.0 has **no configuration-only automatic lazy MCP startup or idle shutdown**. The example uses `enabled: false` to avoid launching a global bridge (and occupying port 3081) in every session. When beginning a Figma workflow, use `/mcp` to enable the server, wait for it to connect, then run the Figma plugin. Disable it again through `/mcp` after the workflow to stop the server. These changes persist; a trusted project's `.pi/mcp.json` can instead override a global entry by name with `{ "enabled": true }` so it starts only in that project. A project-only entry (without a global entry) also restricts startup to trusted projects using it, but still starts on every session in those projects. The first `bridge_status` call **checks**, not starts, an enabled bridge. Neither `codemode` exposure nor a loaded Skill starts a disabled server; a user must enable it with `/mcp` first. Do not use adapter-only `lifecycle`, `idleTimeout`, `requestTimeoutMs`, or `includeTools` fields.
+When using the Skill, call `start_figma_bridge({})` first, then discover tools through Pi's `codemode`: `searchTools("Figma bridge_status")`, inspect with `describeTool()`, and call the discovered tool (normally `tools.mcp__figma_mcp_to_web_lazy__bridge_status({})`). MCP results have `isError`, `content`, and `structuredContent`; forward only PNG/JPEG image blocks with `image(block)`, not SVG source text. `/mcp` shows the runtime bridge only after the starter tool is called. `pi mcp list` runs without extensions, so it will show only the disabled legacy entry, not the on-demand bridge.
 
-If you previously installed `pi-mcp-adapter`, remove/disable it first: an extension registering `/mcp` replaces Pi's built-in MCP support. After editing configuration, run `/reload` (or restart Pi) and check `/mcp` for the server's disabled/connected state. `pi mcp list` can validate configuration from a shell **before** launching Pi; do not start a second instance while port 3081 is occupied. Ensure no other process uses that port.
-
-With `exposure: "codemode"`, discover tools using `searchTools("Figma bridge_status")` in Pi's built-in `codemode`, then inspect the returned name with `describeTool()`. For the server name in the example above, call `tools.mcp__figma_mcp_to_web_bridge__bridge_status({})`; if your installation uses another name, use the actual tool name returned by discovery. Tool calls return MCP `CallToolResult` (check `isError`; forward only PNG/JPEG image blocks with `image(block)`, not SVG source text). Alternatively set `exposure: "deferred"` and load tools via `tool_search`, or `"direct"` to expose all bridge tools immediately. Verify the effective exposure in `/mcp`.
-
-Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Enable the server via `/mcp`, then run **Figma MCP to Web Plugin** in Figma Desktop after Pi connects the bridge (or before; it will retry). The plugin connects automatically. Do not consider setup complete until it displays:
+Figma does not allow an external process to install or launch a plugin. First import `<skill-dir>/plugin/manifest.json` through **Plugins → Development → Import plugin from manifest…**. Call `start_figma_bridge`, then run **Figma MCP to Web Plugin** in Figma Desktop after Pi connects the bridge (or before; it will retry). The plugin connects automatically. Do not consider setup complete until it displays:
 
 ```text
 Connected to server in channel: <channel>

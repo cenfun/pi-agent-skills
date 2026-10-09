@@ -31,7 +31,7 @@ cp -R pi-agent-skills/skills/* ~/.pi/agent/skills/
 
 全局安装的 Skills 可在所有项目中使用，pi 会在下次启动时自动发现它们。
 
-`figma-mcp-to-web` 仍需要随附的只读 **Figma 开发插件**（用于读取 Desktop 中的实时文档）和本地 MCP/WebSocket Bridge。复制 Skill 后，先导入一次 Figma Plugin Manifest，再按 [`skills/figma-mcp-to-web/bridge/README.md`](skills/figma-mcp-to-web/bridge/README.md) 安装 Bridge 依赖，并在 `~/.pi/agent/mcp.json` 或可信项目的 `.pi/mcp.json` 中配置 **Pi 原生 MCP**。无需 `pi-mcp-adapter` 扩展；若已安装，应移除它以免覆盖原生 MCP。Pi 会在会话启动时连接已启用的 MCP 服务；如果只想按需使用全局 Bridge，默认保持禁用，并在 Figma 工作流前后通过 `/mcp` 手动启用/禁用（并非自动懒启动）。每个会话仍需用户在 Figma Desktop 中运行 Figma 插件，之后插件会自动连接和重连。SVG 导出返回原始源码文本，不作为 Pi 不支持的 SVG 图片块。
+`figma-mcp-to-web` 仍需要随附的只读 **Figma 开发插件**（用于读取 Desktop 中的实时文档）和本地 MCP/WebSocket Bridge。复制 Skill 后，先导入一次 Figma Plugin Manifest，再按 [`skills/figma-mcp-to-web/bridge/README.md`](skills/figma-mcp-to-web/bridge/README.md) 安装 Bridge 依赖并运行随附的按需启动扩展安装脚本（仍使用 **Pi 原生 MCP**）。无需 `pi-mcp-adapter` 扩展；若已安装，应移除它以免覆盖原生 MCP。在最终安装的 Skill 的 `bridge/` 目录运行 `npm ci --ignore-scripts` 和 `node setup.mjs`，然后执行一次 `/reload`（或重启 Pi）。这会安装一个轻量 Pi 扩展：Skill 调用 `start_figma_bridge` 时才通过 Pi 原生 MCP 注册并启动 Bridge，空闲 10 分钟或会话结束后关闭；普通 Pi 会话不会占用 3081 端口。每次使用 Figma 时仍需用户在 Figma Desktop 中运行插件，之后插件会自动连接和重连。SVG 导出返回原始源码文本，不作为 Pi 不支持的 SVG 图片块。
 
 ### 项目安装
 
