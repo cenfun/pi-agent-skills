@@ -10,7 +10,7 @@ A collection of on-demand Agent Skills for [pi coding agent](https://pi.dev).
 | --- | --- | --- |
 | [`export-data-to-excel`](skills/export-data-to-excel/SKILL.md) | Exports structured data, query results, logs, and reports to dated `.xlsx` workbooks under `.temp/`. Includes a reusable exporter with explicit columns, automatic widths, and multi-sheet support. | Node.js, `xlsx` |
 | [`figma-mcp-to-web`](skills/figma-mcp-to-web/SKILL.md) | Implements high-fidelity, responsive, interactive web UI from the currently open Figma Desktop document through the bundled read-only development plugin and local Node.js MCP/WebSocket bridge. Uses progressive selection, node, style, component, asset, and screenshot inspection with visual/behavioral validation. | Node.js, Figma Desktop, bundled **Figma MCP to Web Plugin**, Pi's built-in MCP configured for the bundled bridge |
-| [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | Prefers Node.js and its built-in modules over Python when temporary scripts are needed for automation, data processing, code generation, repository maintenance, or debugging. | Node.js |
+| [`prefer-nodejs-scripts`](skills/prefer-nodejs-scripts/SKILL.md) | Prefers Node.js and its built-in modules over Python when temporary scripts are needed for automation, data processing, code generation, repository maintenance, or debugging. Also standardizes temporary files and reusable helper scripts under the project root `.temp/` directory. | Node.js |
 
 ## Installing the Skills from This Repository
 
